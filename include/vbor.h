@@ -33,9 +33,11 @@
 
 #include "config.h"
 
-#include "vsb.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdlib.h>
 
-struct vsb;
+#include "vsb.h"
 
 struct vbor
 {
@@ -43,13 +45,19 @@ struct vbor
 #define VBOR_MAGIC 0x97675fd9
   uint8_t *data;
   size_t len;
+  unsigned max_depth;
 };
 
-int VBOR_Init(struct vbor *, const uint8_t *, size_t);
-int VBOR_PrintJSON(struct vbor *, struct vsb *);
+struct vbor *VBOR_Init(const uint8_t *data, size_t len);
+int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json);
 #define VBOR_PRINT_MULTILINE (1 << 0)
 #define VBOR_PRINT_PRETTY (1 << 1)
-int VBOR_Fini(struct vbor *);
+void VBOR_Destroy(struct vbor **vbor);
+
+uint64_t VBOR_GetUInt(struct vbor *vbor);
+int64_t VBOR_GetNegint(struct vbor *vbor);
+const char *VBOR_GetString(struct vbor *vbor);
+const uint8_t *VBOR_GetByteString(struct vbor *vbor);
 
 struct vbob
 {
@@ -58,16 +66,24 @@ struct vbob
   struct vsb vsb[1];
   uint8_t *buf;
   size_t buf_len;
-  /* ... */
   unsigned max_depth;
   unsigned depth;
   uint8_t open[];
 };
 
-int *VBOB_Alloc(struct vbob *, unsigned max_depth);
-int VBOB_ParseJSON(struct vbor *, const char *);
-int VBOB_Finish(struct vbob *, struct vbor *);
-int *VBOB_Destroy(struct vbob **);
+struct vbob *VBOB_Alloc(unsigned max_depth);
+void VBOB_Destroy(struct vbob **vbob);
+
+bool VBOB_AddUInt(struct vbob *vbob, uint64_t value);
+bool VBOB_AddNegint(struct vbob *vbob, int64_t value);
+bool VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
+bool VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len);
+bool VBOB_AddArray(struct vbob *vbob, size_t num_items);
+bool VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
+
+struct vbor *VBOB_Finish(struct vbob *vbob);
+
+struct vbor *VBOB_ParseJSON(const char *);
 
 struct vboc_pos
 {
@@ -75,7 +91,7 @@ struct vboc_pos
 #define VBOC_POS_MAGIC 0xcf7664ba
   int pos;
   int len;
-  struct vbor vbor[1];
+  struct vbor *vbor;
 };
 
 struct vboc
@@ -87,5 +103,8 @@ struct vboc
   unsigned max_depth;
   struct vboc_pos pos[];
 };
+
+struct vboc *VBOC_Init(const struct vbor *);
+struct vbor *VBOC_Next(struct vboc *);
 
 #endif
