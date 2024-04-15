@@ -195,6 +195,29 @@ VBOB_Destroy(struct vbob **vbob)
 
 }
 
+static void
+VBOB_AddHeader(struct vbob *vbob, vbor_major_type_t type, size_t len)
+{
+  uint8_t hdr[9] = {0};
+  uint8_t written = 0;
+  hdr[0] = vbor_encode_type(type);
+  hdr[0] |= vbor_encoded_arg(len);
+  written += 1;
+  if (type != VBOR_UINT && type != VBOR_NEGINT)
+  {
+    size_t size_len = vbor_length_encoded_size(len);
+    if (size_len != 0)
+    {
+      for (size_t i = 0; i < size_len; i++)
+      {
+        hdr[i + 1] = (len >> ((size_len - 1 - i) * 8)) & 0xFF;
+      }
+      written += size_len;
+    }
+  }
+  AZ(VSB_bcat(vbob->vsb, hdr, written));
+}
+
 bool
 VBOB_AddUInt(struct vbob *vbob, uint64_t value)
 {
