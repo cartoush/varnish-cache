@@ -74,12 +74,12 @@ struct vbob
 struct vbob *VBOB_Alloc(unsigned max_depth);
 void VBOB_Destroy(struct vbob **vbob);
 
-bool VBOB_AddUInt(struct vbob *vbob, uint64_t value);
-bool VBOB_AddNegint(struct vbob *vbob, int64_t value);
-bool VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
-bool VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len);
-bool VBOB_AddArray(struct vbob *vbob, size_t num_items);
-bool VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
+void VBOB_AddUInt(struct vbob *vbob, uint64_t value);
+void VBOB_AddNegint(struct vbob *vbob, int64_t value);
+void VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
+void VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len);
+void VBOB_AddArray(struct vbob *vbob, size_t num_items);
+void VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
 
 struct vbor *VBOB_Finish(struct vbob *vbob);
 

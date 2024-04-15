@@ -218,40 +218,48 @@ VBOB_AddHeader(struct vbob *vbob, vbor_major_type_t type, size_t len)
   AZ(VSB_bcat(vbob->vsb, hdr, written));
 }
 
-bool
+void
 VBOB_AddUInt(struct vbob *vbob, uint64_t value)
 {
-
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  VBOB_AddHeader(vbob, VBOR_UINT, value);
 }
 
-bool
+void
 VBOB_AddNegint(struct vbob *vbob, int64_t value)
 {
-
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  VBOB_AddHeader(vbob, VBOR_NEGINT, value);
 }
 
-bool
+void
 VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
 {
-
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  VBOB_AddHeader(vbob, VBOR_TEXT_STRING, len);
+  AZ(VSB_bcat(vbob->vsb, value, len));
 }
 
-bool
+void
 VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
 {
-
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  VBOB_AddHeader(vbob, VBOR_BYTE_STRING, len);
+  AZ(VSB_bcat(vbob->vsb, value, len));
 }
 
-bool
+void
 VBOB_AddArray(struct vbob *vbob, size_t num_items)
 {
-
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  VBOB_AddHeader(vbob, VBOR_ARRAY, num_items);
 }
 
-bool
+void
 VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
 {
-
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  VBOB_AddHeader(vbob, VBOR_MAP, num_pairs);
 }
 
 struct vbor *
