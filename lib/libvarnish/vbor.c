@@ -36,7 +36,8 @@
 #include "vas.h"
 #include "vbor.h"
 
-struct vbor *VBOR_Init(const uint8_t *data, size_t len)
+struct vbor *
+VBOR_Init(const uint8_t *data, size_t len)
 {
   struct vbor *vbor;
   AN(data);
@@ -47,12 +48,14 @@ struct vbor *VBOR_Init(const uint8_t *data, size_t len)
   memcpy(vbor->data, data, len);
 }
 
-int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json)
+int
+VBOR_PrintJSON(struct vbor *vbor, struct vsb *json)
 {
 
 }
 
-void VBOR_Destroy(struct vbor **vbor)
+void
+VBOR_Destroy(struct vbor **vbor)
 {
   AN(vbor);
   AN((*vbor)->data);
@@ -60,77 +63,92 @@ void VBOR_Destroy(struct vbor **vbor)
   FREE_OBJ(*vbor);
 }
 
-uint64_t VBOR_GetUInt(struct vbor *vbor)
+uint64_t
+VBOR_GetUInt(struct vbor *vbor)
 {
 
 }
 
-int64_t VBOR_GetNegint(struct vbor *vbor)
+int64_t
+VBOR_GetNegint(struct vbor *vbor)
 {
 
 }
 
-const char *VBOR_GetString(struct vbor *vbor)
+const char *
+VBOR_GetString(struct vbor *vbor)
 {
 
 }
 
-const uint8_t *VBOR_GetByteString(struct vbor *vbor)
+const uint8_t *
+VBOR_GetByteString(struct vbor *vbor)
 {
 
 }
 
-struct vbob *VBOB_Alloc(unsigned max_depth)
+struct vbob *
+VBOB_Alloc(unsigned max_depth)
 {
 
 }
 
-void VBOB_Destroy(struct vbob **vbob)
+void
+VBOB_Destroy(struct vbob **vbob)
 {
 
 }
 
-bool VBOB_AddUInt(struct vbob *vbob, uint64_t value)
+bool
+VBOB_AddUInt(struct vbob *vbob, uint64_t value)
 {
 
 }
 
-bool VBOB_AddNegint(struct vbob *vbob, int64_t value)
+bool
+VBOB_AddNegint(struct vbob *vbob, int64_t value)
 {
 
 }
 
-bool VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
+bool
+VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
 {
 
 }
 
-bool VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
+bool
+VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
 {
 
 }
 
-bool VBOB_AddArray(struct vbob *vbob, size_t num_items)
+bool
+VBOB_AddArray(struct vbob *vbob, size_t num_items)
 {
 
 }
 
-bool VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
+bool
+VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
 {
 
 }
 
-struct vbor *VBOB_Finish(struct vbob *vbob)
+struct vbor *
+VBOB_Finish(struct vbob *vbob)
 {
 
 }
 
-struct vbor *VBOB_ParseJSON(const char *json)
+struct vbor *
+VBOB_ParseJSON(const char *json)
 {
 
 }
 
-struct vboc *VBOC_Init(const struct vbor *vbor)
+struct vboc *
+VBOC_Init(const struct vbor *vbor)
 {
   struct vboc *vboc;
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
@@ -145,7 +163,8 @@ struct vboc *VBOC_Init(const struct vbor *vbor)
   return vboc;
 }
 
-struct vbor *VBOC_Next(struct vboc *)
+struct vbor *
+VBOC_Next(struct vboc *)
 {
 
 }
