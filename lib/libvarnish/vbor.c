@@ -58,7 +58,7 @@ typedef enum
   VBOR_ARG_UNKNOWN,
 } vbor_argument_t;
 
-static size_t
+static uint8_t
 vbor_length_encoded_size(size_t size)
 {
   if (size > 0xFFFFFFFF)
@@ -80,7 +80,7 @@ vbor_length_encoded_size(size_t size)
   return 0;
 }
 
-static size_t
+static uint8_t
 vbor_encoded_arg(size_t size)
 {
   vbor_argument_t arg = VBOR_ARG_5BITS;
@@ -107,10 +107,10 @@ vbor_encoded_arg(size_t size)
   return arg + 0x17;
 }
 
-static void
-vbor_encode_type(vbor_major_type_t type, uint8_t *data)
+static uint8_t
+vbor_encode_type(vbor_major_type_t type)
 {
-  *data = type << 5;
+  return type << 5;
 }
 
 static size_t
