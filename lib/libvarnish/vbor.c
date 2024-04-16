@@ -221,34 +221,143 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json)
 void
 VBOR_Destroy(struct vbor **vbor)
 {
-  AN(vbor);
+  CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
   AN((*vbor)->data);
   free((*vbor)->data);
   FREE_OBJ(*vbor);
 }
 
+static bool
+VBOR_GetHeader(struct vbor *vbor, vbor_major_type_t *type, vbor_argument_t *arg, size_t *len)
+{
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(type);
+  AN(arg);
+  AN(len);
+  *type = vbor_decode_type(vbor->data[0]);
+  if (*type == VBOR_UNKNOWN)
+  {
+    return false;
+  }
+  *arg = vbor_decode_arg(vbor->data[0]);
+  if (*arg == VBOR_ARG_UNKNOWN)
+  {
+    return false;
+  }
+  *len = vbor_decode_value_length(*type, *arg, vbor->data, vbor->len);
+  if (*len == -1)
+  {
+    return false;
+  }
+  return true;
+}
+
 uint64_t
 VBOR_GetUInt(struct vbor *vbor)
 {
-
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  vbor_major_type_t type = VBOR_UNKNOWN;
+  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  size_t len = - 1;
+  if (!VBOR_GetHeader(vbor, &type, &arg, &len))
+  {
+    return -1;
+  }
+  if (type != VBOR_UINT)
+  {
+    return -1;
+  }
+  return len;
 }
 
-int64_t
+uint64_t
 VBOR_GetNegint(struct vbor *vbor)
 {
-
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  vbor_major_type_t type = VBOR_UNKNOWN;
+  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  size_t len = - 1;
+  if (!VBOR_GetHeader(vbor, &type, &arg, &len))
+  {
+    return -1;
+  }
+  if (type != VBOR_NEGINT)
+  {
+    return -1;
+  }
+  return -1 - len;
 }
 
 const char *
-VBOR_GetString(struct vbor *vbor)
+VBOR_GetString(struct vbor *vbor, size_t *len)
 {
-
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(len);
+  vbor_major_type_t type = VBOR_UNKNOWN;
+  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  *len = -1;
+  if (!VBOR_GetHeader(vbor, &type, &arg, len))
+  {
+    return NULL;
+  }
+  if (type != VBOR_TEXT_STRING)
+  {
+    return NULL;
+  }
+  return (const char*)vbor->data + 1 + vbor_length_encoded_size(*len);
 }
 
 const uint8_t *
-VBOR_GetByteString(struct vbor *vbor)
+VBOR_GetByteString(struct vbor *vbor, size_t *len)
 {
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(len);
+  vbor_major_type_t type = VBOR_UNKNOWN;
+  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  *len = - 1;
+  if (!VBOR_GetHeader(vbor, &type, &arg, len))
+  {
+    return NULL;
+  }
+  if (type != VBOR_BYTE_STRING)
+  {
+    return NULL;
+  }
+  return vbor->data + 1 + vbor_length_encoded_size(*len);
+}
 
+size_t VBOR_GetArraySize(struct vbor *vbor)
+{
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  vbor_major_type_t type = VBOR_UNKNOWN;
+  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  size_t len = -1;
+  if (!VBOR_GetHeader(vbor, &type, &arg, &len))
+  {
+    return -1;
+  }
+  if (type != VBOR_ARRAY)
+  {
+    return -1;
+  }
+  return len;
+}
+
+size_t VBOR_GetMapSize(struct vbor *vbor)
+{
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  vbor_major_type_t type = VBOR_UNKNOWN;
+  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  size_t len = -1;
+  if (!VBOR_GetHeader(vbor, &type, &arg, &len))
+  {
+    return -1;
+  }
+  if (type != VBOR_MAP)
+  {
+    return -1;
+  }
+  return len;
 }
 
 struct vbob *

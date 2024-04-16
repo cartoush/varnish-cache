@@ -55,9 +55,11 @@ int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json);
 void VBOR_Destroy(struct vbor **vbor);
 
 uint64_t VBOR_GetUInt(struct vbor *vbor);
-int64_t VBOR_GetNegint(struct vbor *vbor);
-const char *VBOR_GetString(struct vbor *vbor);
-const uint8_t *VBOR_GetByteString(struct vbor *vbor);
+uint64_t VBOR_GetNegint(struct vbor *vbor);
+const char *VBOR_GetString(struct vbor *vbor, size_t *len);
+const uint8_t *VBOR_GetByteString(struct vbor *vbor, size_t *len);
+size_t VBOR_GetArraySize(struct vbor *vbor);
+size_t VBOR_GetMapSize(struct vbor *vbor);
 
 struct vbob
 {
