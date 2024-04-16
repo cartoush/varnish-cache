@@ -225,7 +225,7 @@ VBOR_Destroy(struct vbor **vbor)
 }
 
 static bool
-VBOR_GetHeader(struct vbor *vbor, enum vbor_major_type *type, enum vbor_argument *arg, size_t *len)
+VBOR_GetHeader(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_argument *arg, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(type);
@@ -250,7 +250,7 @@ VBOR_GetHeader(struct vbor *vbor, enum vbor_major_type *type, enum vbor_argument
 }
 
 uint64_t
-VBOR_GetUInt(struct vbor *vbor)
+VBOR_GetUInt(const struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   enum vbor_major_type type = VBOR_UNKNOWN;
@@ -268,7 +268,7 @@ VBOR_GetUInt(struct vbor *vbor)
 }
 
 uint64_t
-VBOR_GetNegint(struct vbor *vbor)
+VBOR_GetNegint(const struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   enum vbor_major_type type = VBOR_UNKNOWN;
@@ -286,7 +286,7 @@ VBOR_GetNegint(struct vbor *vbor)
 }
 
 const char *
-VBOR_GetString(struct vbor *vbor, size_t *len)
+VBOR_GetString(const struct vbor *vbor, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(len);
@@ -305,7 +305,7 @@ VBOR_GetString(struct vbor *vbor, size_t *len)
 }
 
 const uint8_t *
-VBOR_GetByteString(struct vbor *vbor, size_t *len)
+VBOR_GetByteString(const struct vbor *vbor, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(len);
@@ -323,7 +323,7 @@ VBOR_GetByteString(struct vbor *vbor, size_t *len)
   return vbor->data + 1 + vbor_length_encoded_size(*len);
 }
 
-size_t VBOR_GetArraySize(struct vbor *vbor)
+size_t VBOR_GetArraySize(const struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   enum vbor_major_type type = VBOR_UNKNOWN;
@@ -340,7 +340,7 @@ size_t VBOR_GetArraySize(struct vbor *vbor)
   return len;
 }
 
-size_t VBOR_GetMapSize(struct vbor *vbor)
+size_t VBOR_GetMapSize(const struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   enum vbor_major_type type = VBOR_UNKNOWN;
