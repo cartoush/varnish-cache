@@ -134,6 +134,70 @@ vbor_encode_arg(size_t size, uint8_t *data)
   return 1 + size_len;
 }
 
+static vbor_major_type_t
+vbor_decode_type(uint8_t data)
+{
+  vbor_major_type_t type = data >> 5;
+
+  if (type < VBOR_UINT || type > VBOR_MAP)
+  {
+    type = VBOR_UNKNOWN;
+  }
+  return type;
+}
+
+static vbor_argument_t
+vbor_decode_arg(uint8_t data)
+{
+  vbor_argument_t arg = data & 0b00011111;
+
+  if (arg > 0x1b)
+  {
+    arg = VBOR_ARG_UNKNOWN;
+  }
+  else if (arg < 0x18)
+  {
+    arg = VBOR_ARG_5BITS;
+  }
+  else
+  {
+    arg = arg - 0x17;
+  }
+  return arg;
+}
+
+static size_t
+vbor_decode_value_length(vbor_major_type_t type, vbor_argument_t arg, const uint8_t *data, size_t length)
+{
+  size_t len = 0;
+  if (type == VBOR_UNKNOWN || arg == VBOR_ARG_UNKNOWN)
+  {
+    return -1;
+  }
+  else if (type == VBOR_UINT || type == VBOR_NEGINT)
+  {
+    len = arg;
+  }
+  else if (arg == VBOR_ARG_5BITS)
+  {
+    len = (*data) & 0b00011111;
+  }
+  else
+  {
+    uint8_t len_len = pow(2, arg - 1);
+    if (len_len > length - 1)
+    {
+      return -1;
+    }
+    for (size_t i = 0; i < len_len; i++)
+    {
+      len <<= 8;
+      len += data[1 + i];
+    }
+  }
+  return len;
+}
+
 struct vbor *
 VBOR_Init(const uint8_t *data, size_t len)
 {
