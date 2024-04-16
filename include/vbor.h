@@ -43,7 +43,7 @@ struct vbor
 {
   unsigned magic;
 #define VBOR_MAGIC 0x97675fd9
-  uint8_t *data;
+  const uint8_t *data;
   size_t len;
   unsigned max_depth;
   bool sub;
