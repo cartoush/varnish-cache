@@ -32,6 +32,8 @@
 
 #include <string.h>
 
+#include "vdef.h"
+
 #include "miniobj.h"
 #include "vas.h"
 #include "vbor.h"
@@ -142,6 +144,8 @@ VBOR_Init(const uint8_t *data, size_t len)
   vbor->data = malloc(len);
   AN(vbor->data);
   memcpy(vbor->data, data, len);
+  vbor->len = len;
+  return vbor;
 }
 
 int
@@ -186,13 +190,21 @@ VBOR_GetByteString(struct vbor *vbor)
 struct vbob *
 VBOB_Alloc(unsigned max_depth)
 {
-
+  struct vbob *vbob;
+  ALLOC_OBJ(vbob, VBOB_MAGIC);
+  vbob->vsb = VSB_new_auto();
+  vbob->max_depth = max_depth;
+  vbob->depth = 0;
+  return vbob;
 }
 
 void
 VBOB_Destroy(struct vbob **vbob)
 {
-
+  AN(vbob);
+  VSB_destroy(&(*vbob)->vsb);
+  CHECK_OBJ_NOTNULL(*vbob, VBOB_MAGIC);
+  FREE_OBJ(*vbob);
 }
 
 static void
@@ -203,17 +215,14 @@ VBOB_AddHeader(struct vbob *vbob, vbor_major_type_t type, size_t len)
   hdr[0] = vbor_encode_type(type);
   hdr[0] |= vbor_encoded_arg(len);
   written += 1;
-  if (type != VBOR_UINT && type != VBOR_NEGINT)
+  size_t size_len = vbor_length_encoded_size(len);
+  if (size_len != 0)
   {
-    size_t size_len = vbor_length_encoded_size(len);
-    if (size_len != 0)
+    for (size_t i = 0; i < size_len; i++)
     {
-      for (size_t i = 0; i < size_len; i++)
-      {
-        hdr[i + 1] = (len >> ((size_len - 1 - i) * 8)) & 0xFF;
-      }
-      written += size_len;
+      hdr[i + 1] = (len >> ((size_len - 1 - i) * 8)) & 0xFF;
     }
+    written += size_len;
   }
   AZ(VSB_bcat(vbob->vsb, hdr, written));
 }
@@ -226,10 +235,10 @@ VBOB_AddUInt(struct vbob *vbob, uint64_t value)
 }
 
 void
-VBOB_AddNegint(struct vbob *vbob, int64_t value)
+VBOB_AddNegint(struct vbob *vbob, uint64_t value)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  VBOB_AddHeader(vbob, VBOR_NEGINT, value);
+  VBOB_AddHeader(vbob, VBOR_NEGINT, value - 1);
 }
 
 void
@@ -265,7 +274,11 @@ VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
 struct vbor *
 VBOB_Finish(struct vbob *vbob)
 {
-
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  VSB_finish(vbob->vsb);
+  struct vbor *vbor = VBOR_Init(VSB_data(vbob->vsb), VSB_len(vbob->vsb));
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  return vbor;
 }
 
 struct vbor *
