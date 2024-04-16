@@ -46,6 +46,7 @@ struct vbor
   uint8_t *data;
   size_t len;
   unsigned max_depth;
+  bool sub;
 };
 
 struct vbor *VBOR_Init(const uint8_t *data, size_t len);
@@ -97,13 +98,16 @@ struct vboc
 {
   unsigned magic;
 #define VBOC_MAGIC 0x863baac8
-  const struct vbor *src;
+  struct vbor *src;
+  struct vbor *current;
   unsigned depth;
   unsigned max_depth;
   struct vboc_pos pos[];
 };
 
-struct vboc *VBOC_Init(const struct vbor *);
+struct vboc *VBOC_Init(struct vbor *);
 struct vbor *VBOC_Next(struct vboc *);
+
+void VBOC_Destroy(struct vboc **vboc);
 
 #endif

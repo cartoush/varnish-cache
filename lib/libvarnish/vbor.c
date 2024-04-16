@@ -205,8 +205,22 @@ VBOR_Init(const uint8_t *data, size_t len)
   ALLOC_OBJ(vbor, VBOR_MAGIC);
   vbor->data = malloc(len);
   AN(vbor->data);
-  memcpy(vbor->data, data, len);
+  memcpy((void*)vbor->data, data, len);
   vbor->len = len;
+  vbor->sub = false;
+  return vbor;
+}
+
+struct vbor *
+VBOR_InitSub(const uint8_t *data, size_t len)
+{
+  struct vbor *vbor;
+  AN(data);
+  AN(len);
+  ALLOC_OBJ(vbor, VBOR_MAGIC);
+  vbor->data = data;
+  vbor->len = len;
+  vbor->sub = true;
   return vbor;
 }
 
@@ -220,8 +234,11 @@ void
 VBOR_Destroy(struct vbor **vbor)
 {
   CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
-  AN((*vbor)->data);
-  free((*vbor)->data);
+  if (!(*vbor)->sub)
+  {
+    AN((*vbor)->data);
+    free((void*)(*vbor)->data);
+  }
   FREE_OBJ(*vbor);
 }
 
@@ -459,13 +476,13 @@ VBOB_ParseJSON(const char *json)
 }
 
 struct vboc *
-VBOC_Init(const struct vbor *vbor)
+VBOC_Init(struct vbor *vbor)
 {
   struct vboc *vboc;
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   ALLOC_OBJ_EXTRA(vboc, sizeof(struct vboc_pos) * vbor->max_depth, VBOC_MAGIC);
-  ALLOC_OBJ(vboc, VBOC_MAGIC);
   vboc->src = vbor;
+  vboc->current = vbor;
   vboc->depth = 0;
   vboc->max_depth = vbor->max_depth;
   for (unsigned i = 0; i < vboc->max_depth; i++) {
@@ -475,9 +492,29 @@ VBOC_Init(const struct vbor *vbor)
 }
 
 struct vbor *
-VBOC_Next(struct vboc *)
+VBOC_Next(struct vboc *vboc)
 {
+  enum vbor_major_type type;
+  enum vbor_argument arg;
+  size_t len;
+  size_t skip = 1;
+  if (!VBOR_GetHeader(vboc->current, &type, &arg, &len))
+  {
+    return NULL;
+  }
+  skip += vbor_length_encoded_size(len);
+  if (type == VBOR_TEXT_STRING || type == VBOR_BYTE_STRING)
+  {
+    skip += len;
+  }
+  vboc->current = VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip);
+  return vboc->current;
+}
 
+void VBOC_Destroy(struct vboc **vboc)
+{
+  CHECK_OBJ_NOTNULL(*vboc, VBOC_MAGIC);
+  FREE_OBJ(*vboc);
 }
 
 int main(void)
