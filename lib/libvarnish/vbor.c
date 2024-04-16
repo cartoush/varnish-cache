@@ -308,3 +308,29 @@ VBOC_Next(struct vboc *)
 {
 
 }
+
+int main(void)
+{
+  struct vbob *vbob = VBOB_Alloc(10);
+
+  VBOB_AddArray(vbob, 3);
+  VBOB_AddUInt(vbob, 5000000000);
+  VBOB_AddMap(vbob, 2);
+  VBOB_AddNegint(vbob, 3000);
+  VBOB_AddString(vbob, "hello", 5);
+  VBOB_AddUInt(vbob, 256000);
+  VBOB_AddByteString(vbob, "world", 5);
+  VBOB_AddString(vbob, "goodbye", 7);
+  struct vbor *vbor = VBOB_Finish(vbob);
+  for (size_t i = 0; i < vbor->len; i++)
+  {
+    printf("%.2X ", vbor->data[i]);
+  }
+  printf("\n");
+  
+
+  VBOB_Destroy(&vbob);
+  VBOR_Destroy(&vbor);
+
+  return EXIT_SUCCESS;
+}
