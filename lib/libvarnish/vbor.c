@@ -300,7 +300,7 @@ VBOR_GetNegint(const struct vbor *vbor)
   {
     return -1;
   }
-  return -1 - len;
+  return len + 1;
 }
 
 const char *
