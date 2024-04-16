@@ -38,7 +38,7 @@
 #include "vas.h"
 #include "vbor.h"
 
-typedef enum
+enum vbor_major_type
 {
   VBOR_UINT,
   VBOR_NEGINT,
@@ -48,9 +48,9 @@ typedef enum
   VBOR_MAP,
   VBOR_UNKNOWN,
   VBOR_UNINIT,
-} vbor_major_type_t;
+};
 
-typedef enum
+enum vbor_argument
 {
   VBOR_ARG_5BITS,
   VBOR_ARG_1BYTE,
@@ -58,7 +58,7 @@ typedef enum
   VBOR_ARG_4BYTES,
   VBOR_ARG_8BYTES,
   VBOR_ARG_UNKNOWN,
-} vbor_argument_t;
+};
 
 static uint8_t
 vbor_length_encoded_size(size_t size)
@@ -85,7 +85,7 @@ vbor_length_encoded_size(size_t size)
 static uint8_t
 vbor_encoded_arg(size_t size)
 {
-  vbor_argument_t arg = VBOR_ARG_5BITS;
+  enum vbor_argument arg = VBOR_ARG_5BITS;
   if (size > 0xFFFFFFFF)
   {
     arg = VBOR_ARG_8BYTES;
@@ -110,7 +110,7 @@ vbor_encoded_arg(size_t size)
 }
 
 static uint8_t
-vbor_encode_type(vbor_major_type_t type)
+vbor_encode_type(enum vbor_major_type type)
 {
   return type << 5;
 }
@@ -134,10 +134,10 @@ vbor_encode_arg(size_t size, uint8_t *data)
   return 1 + size_len;
 }
 
-static vbor_major_type_t
+static enum vbor_major_type
 vbor_decode_type(uint8_t data)
 {
-  vbor_major_type_t type = data >> 5;
+  enum vbor_major_type type = data >> 5;
 
   if (type < VBOR_UINT || type > VBOR_MAP)
   {
@@ -146,10 +146,10 @@ vbor_decode_type(uint8_t data)
   return type;
 }
 
-static vbor_argument_t
+static enum vbor_argument
 vbor_decode_arg(uint8_t data)
 {
-  vbor_argument_t arg = data & 0b00011111;
+  enum vbor_argument arg = data & 0b00011111;
 
   if (arg > 0x1b)
   {
@@ -167,7 +167,7 @@ vbor_decode_arg(uint8_t data)
 }
 
 static size_t
-vbor_decode_value_length(vbor_major_type_t type, vbor_argument_t arg, const uint8_t *data, size_t length)
+vbor_decode_value_length(enum vbor_major_type type, enum vbor_argument arg, const uint8_t *data, size_t length)
 {
   size_t len = 0;
   if (type == VBOR_UNKNOWN || arg == VBOR_ARG_UNKNOWN)
@@ -228,7 +228,7 @@ VBOR_Destroy(struct vbor **vbor)
 }
 
 static bool
-VBOR_GetHeader(struct vbor *vbor, vbor_major_type_t *type, vbor_argument_t *arg, size_t *len)
+VBOR_GetHeader(struct vbor *vbor, enum vbor_major_type *type, enum vbor_argument *arg, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(type);
@@ -256,8 +256,8 @@ uint64_t
 VBOR_GetUInt(struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-  vbor_major_type_t type = VBOR_UNKNOWN;
-  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  enum vbor_major_type type = VBOR_UNKNOWN;
+  enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   size_t len = - 1;
   if (!VBOR_GetHeader(vbor, &type, &arg, &len))
   {
@@ -274,8 +274,8 @@ uint64_t
 VBOR_GetNegint(struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-  vbor_major_type_t type = VBOR_UNKNOWN;
-  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  enum vbor_major_type type = VBOR_UNKNOWN;
+  enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   size_t len = - 1;
   if (!VBOR_GetHeader(vbor, &type, &arg, &len))
   {
@@ -293,8 +293,8 @@ VBOR_GetString(struct vbor *vbor, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(len);
-  vbor_major_type_t type = VBOR_UNKNOWN;
-  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  enum vbor_major_type type = VBOR_UNKNOWN;
+  enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   *len = -1;
   if (!VBOR_GetHeader(vbor, &type, &arg, len))
   {
@@ -312,8 +312,8 @@ VBOR_GetByteString(struct vbor *vbor, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(len);
-  vbor_major_type_t type = VBOR_UNKNOWN;
-  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  enum vbor_major_type type = VBOR_UNKNOWN;
+  enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   *len = - 1;
   if (!VBOR_GetHeader(vbor, &type, &arg, len))
   {
@@ -329,8 +329,8 @@ VBOR_GetByteString(struct vbor *vbor, size_t *len)
 size_t VBOR_GetArraySize(struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-  vbor_major_type_t type = VBOR_UNKNOWN;
-  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  enum vbor_major_type type = VBOR_UNKNOWN;
+  enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   size_t len = -1;
   if (!VBOR_GetHeader(vbor, &type, &arg, &len))
   {
@@ -346,8 +346,8 @@ size_t VBOR_GetArraySize(struct vbor *vbor)
 size_t VBOR_GetMapSize(struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-  vbor_major_type_t type = VBOR_UNKNOWN;
-  vbor_argument_t arg = VBOR_ARG_UNKNOWN;
+  enum vbor_major_type type = VBOR_UNKNOWN;
+  enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   size_t len = -1;
   if (!VBOR_GetHeader(vbor, &type, &arg, &len))
   {
@@ -381,7 +381,7 @@ VBOB_Destroy(struct vbob **vbob)
 }
 
 static void
-VBOB_AddHeader(struct vbob *vbob, vbor_major_type_t type, size_t len)
+VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
 {
   uint8_t hdr[9] = {0};
   uint8_t written = 0;
