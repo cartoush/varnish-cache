@@ -536,6 +536,40 @@ int main(void)
   }
   printf("\n");
   
+  assert(VBOR_GetArraySize(vbor) == 3);
+
+  struct vboc *vboc = VBOC_Init(vbor);
+  struct vbor *next = VBOC_Next(vboc);
+  size_t len = 0;
+  const uint8_t *data = NULL;
+  assert(VBOR_GetUInt(next) == 5000000000);
+
+  next = VBOC_Next(vboc);
+  assert(VBOR_GetMapSize(next) == 2);
+
+  next = VBOC_Next(vboc);
+  assert(VBOR_GetNegint(next) == 3000);
+
+  next = VBOC_Next(vboc);
+  data = VBOR_GetString(next, &len);
+  assert(len == 5);
+  assert(memcmp(data, "hello", 5) == 0);
+
+  next = VBOC_Next(vboc);
+  assert(VBOR_GetUInt(next) == 256000);
+
+  next = VBOC_Next(vboc);
+  data = VBOR_GetByteString(next, &len);
+  assert(memcmp(data, "world", 5) == 0);
+  assert(len == 5);
+
+  next = VBOC_Next(vboc);
+  data = VBOR_GetString(next, &len);
+  assert(len == 7);
+  assert(memcmp(data, "goodbye", 7) == 0);
+
+  // next = VBOC_Next(vboc);
+  // assert(next == NULL);
 
   VBOB_Destroy(&vbob);
   VBOR_Destroy(&vbor);
