@@ -30,6 +30,7 @@
 
 #include "config.h"
 
+#include <math.h>
 #include <string.h>
 
 #include "vdef.h"
