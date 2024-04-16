@@ -175,10 +175,6 @@ vbor_decode_value_length(enum vbor_major_type type, enum vbor_argument arg, cons
   {
     return -1;
   }
-  else if (type == VBOR_UINT || type == VBOR_NEGINT)
-  {
-    len = arg;
-  }
   else if (arg == VBOR_ARG_5BITS)
   {
     len = (*data) & 0b00011111;
