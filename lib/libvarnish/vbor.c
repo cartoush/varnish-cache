@@ -105,25 +105,6 @@ vbor_encode_type(enum vbor_major_type type)
   return type << 5;
 }
 
-static size_t
-vbor_encode_arg(size_t size, uint8_t *data)
-{
-  size_t size_len = vbor_length_encoded_size(size);
-
-  if (size_len == 0)
-  {
-    *data |= size;
-    return 1;
-  }
-  size_t arg = vbor_encoded_arg(size);
-  *data |= arg << 5;
-  for (size_t i = 0; i < size_len; i++)
-  {
-    data[i] |= (size >> ((size_len - 1 - i) * 8)) & 0xFF;
-  }
-  return 1 + size_len;
-}
-
 static enum vbor_major_type
 vbor_decode_type(uint8_t data)
 {
