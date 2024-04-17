@@ -30,6 +30,7 @@
 
 #include "config.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <stdio.h>
 #include <string.h>
@@ -166,7 +167,7 @@ vbor_decode_value_length(enum vbor_major_type type, enum vbor_argument arg, cons
 }
 
 struct vbor *
-VBOR_Init(const uint8_t *data, size_t len)
+VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth)
 {
   struct vbor *vbor;
   AN(data);
@@ -177,11 +178,12 @@ VBOR_Init(const uint8_t *data, size_t len)
   memcpy((void*)vbor->data, data, len);
   vbor->len = len;
   vbor->sub = false;
+  vbor->max_depth = max_depth;
   return vbor;
 }
 
 struct vbor *
-VBOR_InitSub(const uint8_t *data, size_t len)
+VBOR_InitSub(const uint8_t *data, size_t len, unsigned super_depth)
 {
   struct vbor *vbor;
   AN(data);
@@ -193,6 +195,15 @@ VBOR_InitSub(const uint8_t *data, size_t len)
   vbor->data = data;
   vbor->len = len;
   vbor->sub = true;
+  switch (VBOR_What(vbor)) {
+  case VBOR_ARRAY:
+  case VBOR_MAP:
+    vbor->max_depth = super_depth - 1;
+    break;
+  default:
+    vbor->max_depth = super_depth;
+    break;
+  }
   return vbor;
 }
 
@@ -363,7 +374,6 @@ VBOB_Alloc(unsigned max_depth)
   ALLOC_OBJ(vbob, VBOB_MAGIC);
   vbob->vsb = VSB_new_auto();
   vbob->max_depth = max_depth;
-  vbob->depth = 0;
   return vbob;
 }
 
@@ -445,15 +455,202 @@ VBOB_Finish(struct vbob *vbob)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
   VSB_finish(vbob->vsb);
-  struct vbor *vbor = VBOR_Init(VSB_data(vbob->vsb), VSB_len(vbob->vsb));
+  struct vbor *vbor = VBOR_Init(VSB_data(vbob->vsb), VSB_len(vbob->vsb), vbob->max_depth);
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   return vbor;
+}
+
+static bool
+is_nb_float(const char *str)
+{
+  while (isdigit(*str))
+    str++;
+  return *str == '.';
+}
+
+static const char *
+get_str_end(const char *str)
+{
+  bool escaped = false;
+  while (*str != '\0')
+  {
+    if (!escaped && *str == '"')
+      break;
+    if (*str == '\\' && !escaped)
+      escaped = true;
+    else
+      escaped = false;
+    str++;
+  }
+  return *str == '"' ? str : NULL;
+}
+
+static struct vboc_pos *
+VBOC_POS_Init(size_t pos)
+{
+  struct vboc_pos *vbocpos;
+  ALLOC_OBJ(vbocpos, VBOC_POS_MAGIC);
+  vbocpos->pos = pos;
+  return vbocpos;
+}
+
+static size_t
+json_count_elements(const char *json)
+{
+  size_t count = 0;
+  char openings[] = {
+    '{',
+    '[',
+    '"',
+    '\'',
+  };
+  char closings[] = {
+    '}',
+    ']',
+    '"',
+    '\'',
+  };
+
+  if (*json != '{' && *json != '[')
+    return -1;
+  char closing = *json == '[' ? ']' : '}';
+  json++;
+  while (*json != '\0' && *json != closing)
+  {
+    bool sub_opening_found = false;
+    char sub_closing = 0;
+    for (int i = 0; i < 4; i++)
+    {
+      if (*json == openings[i])
+      {
+        sub_opening_found = true;
+        sub_closing = closings[i];
+        break;
+      }
+    }
+    if (sub_opening_found)
+    {
+      json++;
+      while ((*json != sub_closing) ||
+        ((sub_closing == '\'' || sub_closing == '"') &&
+        *json != sub_closing && *(json - 1) == '\\'))
+        json++;
+      if (*json == '\0')
+        return -1;
+    }
+    if (*json == ',' || (count == 0 && !isspace(*json)))
+      count++;
+    json++;
+  }
+  if (*json == '\0')
+    return -1;
+  return count;
 }
 
 struct vbor *
 VBOB_ParseJSON(const char *json)
 {
-
+  AN(json);
+  struct vbob *vbob = VBOB_Alloc(0);
+  int sign = 1;
+  unsigned depth = 0;
+  while (*json != '\0')
+  {
+    if (*json == ' ' || *json == '\t' || *json == '\n' || *json == ',' || *json == ':')
+    {
+      json++;
+      continue;
+    }
+    switch (*json)
+    {
+    case '{':;
+      size_t count = json_count_elements(json);
+      if (count == -1)
+        return NULL;
+      VBOB_AddMap(vbob, count);
+      depth++;
+      if (depth > vbob->max_depth)
+        vbob->max_depth = depth;
+      json++;
+      break;
+    case '}':
+      depth--;
+      json++;
+      break;
+    case '[':;
+      count = json_count_elements(json);
+      if (count == -1)
+        return NULL;
+      VBOB_AddArray(vbob, count);
+      depth++;
+      if (depth > vbob->max_depth)
+        vbob->max_depth = depth;
+      json++;
+      break;
+    case ']':
+      depth--;
+      json++;
+      break;
+    case '-':
+      sign = -1;
+      json++;
+      if (!isdigit(*json))
+      {
+        return NULL;
+      }
+      break;
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+    case '8':
+    case '9':
+      if (is_nb_float(json))
+      {
+        xxxassert("TODO handle float");
+        while (isdigit(*json))
+        {
+          json++;
+        }
+        json++;
+      }
+      else
+      {
+        uint64_t val = strtoul(json, NULL, 10);
+        if (sign == -1)
+        {
+          VBOB_AddNegint(vbob, val);
+        }
+        else
+        {
+          VBOB_AddUInt(vbob, val);
+        }
+      }
+      while (isdigit(*json))
+      {
+        json++;
+      }
+      sign = 1;
+      break;
+    case '"':
+      json++;
+      const char *end = get_str_end(json);
+      char *data = strndup(json, end - json);
+      VBOB_AddString(vbob, data, end - json);
+      free(data);
+      json += (end - json) + 1;
+      break;
+    default:
+      return NULL;
+    }
+  }
+  struct vbor *vbor = VBOB_Finish(vbob);
+  VBOB_Destroy(&vbob);
+  return vbor;
 }
 
 struct vboc *
@@ -488,7 +685,7 @@ VBOC_Next(struct vboc *vboc)
   {
     skip += len;
   }
-  struct vbor *tmp = VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip);
+  struct vbor *tmp = VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip, vboc->current->max_depth);
   if (vboc->current != vboc->src)
   {
     VBOR_Destroy(&vboc->current);
