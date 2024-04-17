@@ -216,7 +216,10 @@ VBOR_InitSub(const uint8_t *data, size_t len)
 {
   struct vbor *vbor;
   AN(data);
-  AN(len);
+  if (len == 0)
+  {
+    return NULL;
+  }
   ALLOC_OBJ(vbor, VBOR_MAGIC);
   vbor->data = data;
   vbor->len = len;
