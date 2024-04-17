@@ -525,7 +525,12 @@ void VBOC_Destroy(struct vboc **vboc)
   FREE_OBJ(*vboc);
 }
 
-int main(void)
+static uint8_t cbor[] = {
+    0x83, 0x1B, 0x00, 0x00, 0x00, 0x01, 0x2A, 0x05, 0xF2, 0x00, 0xA2, 0x39, 0x0B, 0xB7, 0x65, 0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x1A, 0x00, 0x03, 0xE8, 0x00, 0x45, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x67, 0x67, 0x6F, 0x6F, 0x64, 0x62, 0x79, 0x65
+};
+
+int
+main(void)
 {
   struct vbob *vbob = VBOB_Alloc(10);
 
@@ -543,6 +548,7 @@ int main(void)
     printf("%.2X ", vbor->data[i]);
   }
   printf("\n");
+  assert(!memcmp(cbor, vbor->data, vbor->len));
   
   assert(VBOR_GetArraySize(vbor) == 3);
 
@@ -576,9 +582,10 @@ int main(void)
   assert(len == 7);
   assert(memcmp(data, "goodbye", 7) == 0);
 
-  // next = VBOC_Next(vboc);
-  // assert(next == NULL);
+  next = VBOC_Next(vboc);
+  assert(next == NULL);
 
+  VBOC_Destroy(&vboc);
   VBOB_Destroy(&vbob);
   VBOR_Destroy(&vbor);
 
