@@ -704,6 +704,8 @@ static uint8_t cbor[] = {
     0x83, 0x1B, 0x00, 0x00, 0x00, 0x01, 0x2A, 0x05, 0xF2, 0x00, 0xA2, 0x39, 0x0B, 0xB7, 0x65, 0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x1A, 0x00, 0x03, 0xE8, 0x00, 0x45, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x67, 0x67, 0x6F, 0x6F, 0x64, 0x62, 0x79, 0x65
 };
 
+static char *json = "{\"a\": 5000000000, \"b\": [-3000, \"hello\", 256000, \"world\"], \"g\": \"goodbye\"}";
+
 int
 main(void)
 {
@@ -718,6 +720,7 @@ main(void)
   VBOB_AddByteString(vbob, "world", 5);
   VBOB_AddString(vbob, "goodbye", 7);
   struct vbor *vbor = VBOB_Finish(vbob);
+  VBOB_Destroy(&vbob);
   for (size_t i = 0; i < vbor->len; i++)
   {
     printf("%.2X ", vbor->data[i]);
@@ -761,7 +764,19 @@ main(void)
   assert(next == NULL);
 
   VBOC_Destroy(&vboc);
-  VBOB_Destroy(&vbob);
+  VBOR_Destroy(&vbor);
+
+  assert(json_count_elements(json) == 3);
+  assert(json_count_elements(json + 23) == 4);
+
+  vbor = VBOB_ParseJSON(json);
+  assert(vbor->max_depth == 2);
+  assert(VBOR_What(vbor) == VBOR_MAP);
+  for (size_t i = 0; i < vbor->len; i++)
+  {
+    printf("%.2X ", vbor->data[i]);
+  }
+  printf("\n");
   VBOR_Destroy(&vbor);
 
   return EXIT_SUCCESS;
