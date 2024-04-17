@@ -40,18 +40,6 @@
 #include "vas.h"
 #include "vbor.h"
 
-enum vbor_major_type
-{
-  VBOR_UINT,
-  VBOR_NEGINT,
-  VBOR_BYTE_STRING,
-  VBOR_TEXT_STRING,
-  VBOR_ARRAY,
-  VBOR_MAP,
-  VBOR_UNKNOWN,
-  VBOR_UNINIT,
-};
-
 enum vbor_argument
 {
   VBOR_ARG_5BITS,
@@ -376,6 +364,15 @@ size_t VBOR_GetMapSize(const struct vbor *vbor)
     return -1;
   }
   return len;
+}
+
+enum vbor_major_type
+VBOR_What(const struct vbor *vbor)
+{
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(vbor->data);
+  AN(vbor->len);
+  return vbor_decode_type(vbor->data[0]);
 }
 
 struct vbob *

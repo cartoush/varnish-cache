@@ -39,6 +39,18 @@
 
 #include "vsb.h"
 
+enum vbor_major_type
+{
+  VBOR_UINT,
+  VBOR_NEGINT,
+  VBOR_BYTE_STRING,
+  VBOR_TEXT_STRING,
+  VBOR_ARRAY,
+  VBOR_MAP,
+  VBOR_UNKNOWN,
+  VBOR_UNINIT,
+};
+
 struct vbor
 {
   unsigned magic;
@@ -61,6 +73,8 @@ const char *VBOR_GetString(const struct vbor *vbor, size_t *len);
 const uint8_t *VBOR_GetByteString(const struct vbor *vbor, size_t *len);
 size_t VBOR_GetArraySize(const struct vbor *vbor);
 size_t VBOR_GetMapSize(const struct vbor *vbor);
+
+enum vbor_major_type VBOR_What(const struct vbor *vbor);
 
 struct vbob
 {
