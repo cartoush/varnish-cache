@@ -510,7 +510,12 @@ VBOC_Next(struct vboc *vboc)
   {
     skip += len;
   }
-  vboc->current = VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip);
+  struct vbor *tmp = VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip);
+  if (vboc->current != vboc->src)
+  {
+    VBOR_Destroy(&vboc->current);
+  }
+  vboc->current = tmp;
   return vboc->current;
 }
 
