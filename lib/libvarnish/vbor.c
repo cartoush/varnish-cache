@@ -780,7 +780,7 @@ VBOC_Update_cursor(struct vboc *vboc)
 
   if (type != VBOR_ARRAY && type != VBOR_MAP)
   {
-    if (vboc->depth == -1)
+    if (vboc->depth == (unsigned)-1)
       return;
     else
       vboc->pos[vboc->depth].pos += 1;
@@ -795,7 +795,7 @@ VBOC_Update_cursor(struct vboc *vboc)
 
   if (vboc->depth != 0 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
   {
-    while (vboc->depth != -1 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
+    while (vboc->depth != (unsigned)-1 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
     {
       vboc->depth--;
       vboc->pos[vboc->depth].pos += 1;
