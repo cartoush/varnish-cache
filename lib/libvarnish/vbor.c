@@ -553,7 +553,8 @@ VBOB_Finish(struct vbob *vbob)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
   VSB_finish(vbob->vsb);
-  struct vbor *vbor = VBOR_Init(VSB_data(vbob->vsb), VSB_len(vbob->vsb), vbob->max_depth);
+  struct vbor *vbor = VBOR_Init((const uint8_t*)VSB_data(vbob->vsb),
+                                VSB_len(vbob->vsb), vbob->max_depth);
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   return vbor;
 }
