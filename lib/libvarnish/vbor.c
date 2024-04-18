@@ -756,21 +756,56 @@ VBOC_Init(struct vbor *vbor)
   ALLOC_OBJ_EXTRA(vboc, sizeof(struct vboc_pos) * vbor->max_depth, VBOC_MAGIC);
   vboc->src = vbor;
   vboc->current = vbor;
-  vboc->depth = 0;
+  vboc->depth = -1;
   vboc->max_depth = vbor->max_depth;
   for (unsigned i = 0; i < vboc->max_depth; i++) {
     vboc->pos[i].magic = VBOC_POS_MAGIC;
+    vboc->pos[i].pos = -1;
+    vboc->pos[i].len = 0;
   }
+  vboc->pos[0].pos = 0;
   return vboc;
+}
+
+static void
+VBOC_Update_cursor(struct vboc *vboc)
+{
+  enum vbor_major_type type = VBOR_What(vboc->current);
+
+  if (type == VBOR_ARRAY || type == VBOR_MAP)
+  {
+    vboc->depth++;
+    assert(vboc->depth <= vboc->max_depth);
+    vboc->pos[vboc->depth].len = type == VBOR_ARRAY ? VBOR_GetArraySize(vboc->current) : VBOR_GetMapSize(vboc->current) * 2;
+    vboc->pos[vboc->depth].pos = 0;
+  }
+  else if (vboc->depth == -1)
+    return;
+  else
+    vboc->pos[vboc->depth].pos += 1;
+  if (vboc->depth != -1 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
+  {
+    while (vboc->depth != -1 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
+    {
+      vboc->depth--;
+      if (vboc->depth != -1)
+      {
+        vboc->pos[vboc->depth].pos += 1;
+      }
+    }
+  }
 }
 
 struct vbor *
 VBOC_Next(struct vboc *vboc)
 {
+  CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
   enum vbor_major_type type;
   enum vbor_argument arg;
   size_t len;
   size_t skip = 1;
+
+  VBOC_Update_cursor(vboc);
   if (!VBOR_GetHeader(vboc->current, &type, &arg, &len))
   {
     return NULL;
@@ -787,6 +822,19 @@ VBOC_Next(struct vboc *vboc)
   }
   vboc->current = tmp;
   return vboc->current;
+}
+
+struct vboc_pos *
+VBOC_Where(struct vboc *vboc, size_t *depth)
+{
+  CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
+  AN(depth);
+  if (vboc->depth == -1)
+  {
+    return NULL;
+  }
+  *depth = vboc->depth + 1;
+  return vboc->pos;
 }
 
 void VBOC_Destroy(struct vboc **vboc)

@@ -101,9 +101,8 @@ struct vboc_pos
 {
   unsigned magic;
 #define VBOC_POS_MAGIC 0xcf7664ba
-  int pos;
-  int len;
-  struct vbor *vbor;
+  size_t pos;
+  size_t len;
 };
 
 struct vboc
@@ -119,6 +118,7 @@ struct vboc
 
 struct vboc *VBOC_Init(struct vbor *);
 struct vbor *VBOC_Next(struct vboc *);
+struct vboc_pos *VBOC_Where(struct vboc *vboc, size_t *depth);
 
 void VBOC_Destroy(struct vboc **vboc);
 
