@@ -40,6 +40,7 @@
 #include "miniobj.h"
 #include "vas.h"
 #include "vbor.h"
+#include "venc.h"
 
 enum vbor_argument
 {
@@ -208,9 +209,103 @@ VBOR_InitSub(const uint8_t *data, size_t len, unsigned super_depth)
 }
 
 int
-VBOR_PrintJSON(struct vbor *vbor, struct vsb *json)
+VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
 {
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  CHECK_OBJ_NOTNULL(json, VSB_MAGIC);
+  struct vboc *vboc = VBOC_Init(vbor);
+  size_t idxs[vbor->max_depth];
+  enum vbor_major_type types[vbor->max_depth];
+  size_t depth = -1;
+  size_t initial_len = VSB_len(json);
 
+  struct vbor *next = vbor;
+  do {
+    if (pretty && depth != -1 && !(types[depth] == VBOR_MAP && idxs[depth] % 2 == 1))
+    {
+      for (size_t i = 0; i < depth + 1; i++)
+        VSB_putc(json, '\t');
+    }
+    enum vbor_major_type type = VBOR_What(next);
+    switch (type)
+    {
+    case VBOR_UINT:
+      VSB_printf(json, "%lu", VBOR_GetUInt(next));
+      break;
+    case VBOR_NEGINT:
+      VSB_printf(json, "-%lu", VBOR_GetNegint(next));
+      break;
+    case VBOR_TEXT_STRING:;
+      size_t data_len = 0;
+      const uint8_t *data = VBOR_GetString(next, &data_len);
+      VSB_putc(json, '"');
+      VSB_bcat(json, data, data_len);
+      VSB_putc(json, '"');
+      break;
+    case VBOR_BYTE_STRING:
+      data = VBOR_GetByteString(next, &data_len);
+      VSB_putc(json, '"');
+      VENC_Encode_Base64(json, data, data_len);
+      VSB_putc(json, '"');
+      break;
+    case VBOR_ARRAY:
+      VSB_printf(json, "[");
+      depth++;
+      idxs[depth] = VBOR_GetArraySize(next);
+      types[depth] = VBOR_ARRAY;
+      break;
+    case VBOR_MAP:
+      VSB_printf(json, "{");
+      depth++;
+      idxs[depth] = VBOR_GetMapSize(next) * 2;
+      types[depth] = VBOR_MAP;
+      break;
+    default:
+      break;
+    }
+    if (type != VBOR_ARRAY && type != VBOR_MAP && depth != -1)
+      idxs[depth]--;
+    if (depth != -1 && idxs[depth] == 0)
+    {
+      if (pretty)
+      {
+        VSB_putc(json, '\n');
+        for (size_t i = 0; i < depth; i++)
+          VSB_putc(json, '\t');
+      }
+      switch (types[depth])
+      {
+      case VBOR_ARRAY:
+        VSB_putc(json, ']');
+        break;
+      case VBOR_MAP:
+        VSB_putc(json, '}');
+        break;
+      default:
+        VBOC_Destroy(&vboc);
+        return -1;
+      }
+      depth--;
+      idxs[depth]--;
+    }
+    if (type != VBOR_ARRAY && type != VBOR_MAP && depth != -1 && idxs[depth] != 0)
+    {
+      if (types[depth] == VBOR_MAP && idxs[depth] % 2 == 1)
+        VSB_putc(json, ':');
+      else
+      {
+        VSB_putc(json, ',');
+        if (pretty)
+          VSB_putc(json, '\n');
+      }
+    }
+    else if (pretty)
+    {
+      VSB_putc(json, '\n');
+    }
+  } while ((next = VBOC_Next(vboc)) != NULL);
+  VBOC_Destroy(&vboc);
+  return VSB_len(json) - initial_len;
 }
 
 void
