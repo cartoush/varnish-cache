@@ -859,6 +859,13 @@ main(void)
   assert(next == NULL);
 
   VBOC_Destroy(&vboc);
+
+  struct vsb *vsb = VSB_new_auto();
+  VBOR_PrintJSON(vbor, vsb, true);
+  VSB_finish(vsb);
+  printf("%s\n", VSB_data(vsb));
+  VSB_destroy(&vsb);
+
   VBOR_Destroy(&vbor);
 
   assert(json_count_elements(json) == 3);
