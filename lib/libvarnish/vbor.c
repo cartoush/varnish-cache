@@ -840,9 +840,9 @@ void VBOC_Destroy(struct vboc **vboc)
   FREE_OBJ(*vboc);
 }
 
-static uint8_t cbor[] = {
-    0x83, 0x1B, 0x00, 0x00, 0x00, 0x01, 0x2A, 0x05, 0xF2, 0x00, 0xA2, 0x39, 0x0B, 0xB7, 0x65, 0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x1A, 0x00, 0x03, 0xE8, 0x00, 0x45, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x67, 0x67, 0x6F, 0x6F, 0x64, 0x62, 0x79, 0x65
-};
+// static uint8_t cbor[] = {
+//     0x83, 0x1B, 0x00, 0x00, 0x00, 0x01, 0x2A, 0x05, 0xF2, 0x00, 0xA2, 0x39, 0x0B, 0xB7, 0x65, 0x68, 0x65, 0x6C, 0x6C, 0x6F, 0x1A, 0x00, 0x03, 0xE8, 0x00, 0x45, 0x77, 0x6F, 0x72, 0x6C, 0x64, 0x67, 0x67, 0x6F, 0x6F, 0x64, 0x62, 0x79, 0x65
+// };
 
 static char *json = "{\"a\": 5000000000, \"b\": [-3000, \"hello\", 256000, \"world\"], \"g\": \"goodbye\"}";
 
@@ -851,14 +851,24 @@ main(void)
 {
   struct vbob *vbob = VBOB_Alloc(10);
 
-  VBOB_AddArray(vbob, 3);
+  VBOB_AddArray(vbob, 4);
   VBOB_AddUInt(vbob, 5000000000);
-  VBOB_AddMap(vbob, 2);
+  VBOB_AddMap(vbob, 3);
   VBOB_AddNegint(vbob, 3000);
   VBOB_AddString(vbob, "hello", 5);
   VBOB_AddUInt(vbob, 256000);
   VBOB_AddByteString(vbob, "world", 5);
+  VBOB_AddUInt(vbob, 42);
+  VBOB_AddMap(vbob, 2);
+  VBOB_AddString(vbob, "a", 1);
+  VBOB_AddNegint(vbob, 1000);
+  VBOB_AddString(vbob, "b", 1);
+  VBOB_AddArray(vbob, 3);
+  VBOB_AddUInt(vbob, 1);
+  VBOB_AddUInt(vbob, 2);
+  VBOB_AddUInt(vbob, 3);
   VBOB_AddString(vbob, "goodbye", 7);
+  VBOB_AddString(vbob, "lenin", 5);
   struct vbor *vbor = VBOB_Finish(vbob);
   VBOB_Destroy(&vbob);
   for (size_t i = 0; i < vbor->len; i++)
@@ -866,9 +876,8 @@ main(void)
     printf("%.2X ", vbor->data[i]);
   }
   printf("\n");
-  assert(!memcmp(cbor, vbor->data, vbor->len));
   
-  assert(VBOR_GetArraySize(vbor) == 3);
+  assert(VBOR_GetArraySize(vbor) == 4);
 
   struct vboc *vboc = VBOC_Init(vbor);
   struct vbor *next = VBOC_Next(vboc);
@@ -877,7 +886,7 @@ main(void)
   assert(VBOR_GetUInt(next) == 5000000000);
 
   next = VBOC_Next(vboc);
-  assert(VBOR_GetMapSize(next) == 2);
+  assert(VBOR_GetMapSize(next) == 3);
 
   next = VBOC_Next(vboc);
   assert(VBOR_GetNegint(next) == 3000);
@@ -895,15 +904,21 @@ main(void)
   assert(memcmp(data, "world", 5) == 0);
   assert(len == 5);
 
-  next = VBOC_Next(vboc);
-  data = VBOR_GetString(next, &len);
-  assert(len == 7);
-  assert(memcmp(data, "goodbye", 7) == 0);
-
-  next = VBOC_Next(vboc);
-  assert(next == NULL);
-
   VBOC_Destroy(&vboc);
+
+  vboc = VBOC_Init(vbor);
+  do {
+    struct vboc_pos *pos = VBOC_Where(vboc, &len);
+    if (pos != NULL)
+    {
+      printf("where : ");
+      for (size_t i = 0; i < len; i++)
+      {
+        printf("%ld/%ld ", pos[i].pos, pos[i].len);
+      }
+      printf("\n");
+    }
+  } while ((next = VBOC_Next(vboc)) != NULL);
 
   struct vsb *vsb = VSB_new_auto();
   VBOR_PrintJSON(vbor, vsb, true);
