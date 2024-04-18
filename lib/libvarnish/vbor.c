@@ -863,7 +863,7 @@ main(void)
   VBOB_AddNegint(vbob, 3000);
   VBOB_AddString(vbob, "hello", 5);
   VBOB_AddUInt(vbob, 256000);
-  VBOB_AddByteString(vbob, "world", 5);
+  VBOB_AddByteString(vbob, (const uint8_t*)"world", 5);
   VBOB_AddUInt(vbob, 42);
   VBOB_AddMap(vbob, 2);
   VBOB_AddString(vbob, "a", 1);
@@ -898,7 +898,7 @@ main(void)
   assert(VBOR_GetNegint(next) == 3000);
 
   next = VBOC_Next(vboc);
-  data = VBOR_GetString(next, &len);
+  data = (const uint8_t*)VBOR_GetString(next, &len);
   assert(len == 5);
   assert(memcmp(data, "hello", 5) == 0);
 
