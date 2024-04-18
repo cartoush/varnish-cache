@@ -221,7 +221,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
 
   struct vbor *next = vbor;
   do {
-    if (pretty && depth != -1 && !(types[depth] == VBOR_MAP && idxs[depth] % 2 == 1))
+    if (pretty && depth != (size_t)-1 && !(types[depth] == VBOR_MAP && idxs[depth] % 2 == 1))
     {
       for (size_t i = 0; i < depth + 1; i++)
         VSB_putc(json, '\t');
@@ -237,7 +237,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
       break;
     case VBOR_TEXT_STRING:;
       size_t data_len = 0;
-      const uint8_t *data = VBOR_GetString(next, &data_len);
+      const uint8_t *data = (const uint8_t*)VBOR_GetString(next, &data_len);
       VSB_putc(json, '"');
       VSB_bcat(json, data, data_len);
       VSB_putc(json, '"');
@@ -263,11 +263,12 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
     default:
       break;
     }
-    if (type != VBOR_ARRAY && type != VBOR_MAP && depth != -1)
+    if (type != VBOR_ARRAY && type != VBOR_MAP && depth != (size_t)-1)
       idxs[depth]--;
-    if (depth != -1 && idxs[depth] == 0)
+    if (depth != (size_t)-1 && idxs[depth] == 0)
     {
-      while (depth != -1 && idxs[depth] == 0) {
+      while (depth != (size_t)-1 && idxs[depth] == 0)
+      {
         if (pretty)
         {
           VSB_putc(json, '\n');
@@ -290,7 +291,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
         idxs[depth]--;
       }
     }
-    if (type != VBOR_ARRAY && type != VBOR_MAP && depth != -1 && idxs[depth] != 0)
+    if (type != VBOR_ARRAY && type != VBOR_MAP && depth != (size_t)-1 && idxs[depth] != 0)
     {
       if (types[depth] == VBOR_MAP && idxs[depth] % 2 == 1)
         VSB_putc(json, ':');
