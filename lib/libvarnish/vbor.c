@@ -664,7 +664,7 @@ VBOB_ParseJSON(const char *json)
     {
     case '{':;
       size_t count = json_count_elements(json);
-      if (count == -1)
+      if (count == (size_t)-1)
         return NULL;
       VBOB_AddMap(vbob, count);
       depth++;
@@ -678,7 +678,7 @@ VBOB_ParseJSON(const char *json)
       break;
     case '[':;
       count = json_count_elements(json);
-      if (count == -1)
+      if (count == (size_t)-1)
         return NULL;
       VBOB_AddArray(vbob, count);
       depth++;
@@ -716,6 +716,10 @@ VBOB_ParseJSON(const char *json)
           json++;
         }
         json++;
+        while (isdigit(*json))
+        {
+          json++;
+        }
       }
       else
       {
