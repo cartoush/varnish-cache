@@ -341,7 +341,7 @@ VBOR_GetHeader(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_ar
     return false;
   }
   *len = vbor_decode_value_length(*type, *arg, vbor->data, vbor->len);
-  if (*len == -1)
+  if (*len == (size_t)-1)
   {
     return false;
   }
