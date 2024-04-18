@@ -267,26 +267,28 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
       idxs[depth]--;
     if (depth != -1 && idxs[depth] == 0)
     {
-      if (pretty)
-      {
-        VSB_putc(json, '\n');
-        for (size_t i = 0; i < depth; i++)
-          VSB_putc(json, '\t');
+      while (depth != -1 && idxs[depth] == 0) {
+        if (pretty)
+        {
+          VSB_putc(json, '\n');
+          for (size_t i = 0; i < depth; i++)
+            VSB_putc(json, '\t');
+        }
+        switch (types[depth])
+        {
+        case VBOR_ARRAY:
+          VSB_putc(json, ']');
+          break;
+        case VBOR_MAP:
+          VSB_putc(json, '}');
+          break;
+        default:
+          VBOC_Destroy(&vboc);
+          return -1;
+        }
+        depth--;
+        idxs[depth]--;
       }
-      switch (types[depth])
-      {
-      case VBOR_ARRAY:
-        VSB_putc(json, ']');
-        break;
-      case VBOR_MAP:
-        VSB_putc(json, '}');
-        break;
-      default:
-        VBOC_Destroy(&vboc);
-        return -1;
-      }
-      depth--;
-      idxs[depth]--;
     }
     if (type != VBOR_ARRAY && type != VBOR_MAP && depth != -1 && idxs[depth] != 0)
     {
