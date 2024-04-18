@@ -772,6 +772,13 @@ VBOC_Update_cursor(struct vboc *vboc)
 {
   enum vbor_major_type type = VBOR_What(vboc->current);
 
+  if (type != VBOR_ARRAY && type != VBOR_MAP)
+  {
+    if (vboc->depth == -1)
+      return;
+    else
+      vboc->pos[vboc->depth].pos += 1;
+  }
   if (type == VBOR_ARRAY || type == VBOR_MAP)
   {
     vboc->depth++;
@@ -779,19 +786,13 @@ VBOC_Update_cursor(struct vboc *vboc)
     vboc->pos[vboc->depth].len = type == VBOR_ARRAY ? VBOR_GetArraySize(vboc->current) : VBOR_GetMapSize(vboc->current) * 2;
     vboc->pos[vboc->depth].pos = 0;
   }
-  else if (vboc->depth == -1)
-    return;
-  else
-    vboc->pos[vboc->depth].pos += 1;
-  if (vboc->depth != -1 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
+
+  if (vboc->depth != 0 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
   {
     while (vboc->depth != -1 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
     {
       vboc->depth--;
-      if (vboc->depth != -1)
-      {
-        vboc->pos[vboc->depth].pos += 1;
-      }
+      vboc->pos[vboc->depth].pos += 1;
     }
   }
 }
@@ -829,10 +830,6 @@ VBOC_Where(struct vboc *vboc, size_t *depth)
 {
   CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
   AN(depth);
-  if (vboc->depth == -1)
-  {
-    return NULL;
-  }
   *depth = vboc->depth + 1;
   return vboc->pos;
 }
