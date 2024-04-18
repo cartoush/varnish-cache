@@ -584,15 +584,6 @@ get_str_end(const char *str)
   return *str == '"' ? str : NULL;
 }
 
-static struct vboc_pos *
-VBOC_POS_Init(size_t pos)
-{
-  struct vboc_pos *vbocpos;
-  ALLOC_OBJ(vbocpos, VBOC_POS_MAGIC);
-  vbocpos->pos = pos;
-  return vbocpos;
-}
-
 static size_t
 json_count_elements(const char *json)
 {
