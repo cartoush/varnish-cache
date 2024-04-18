@@ -61,10 +61,8 @@ struct vbor
   bool sub;
 };
 
-struct vbor *VBOR_Init(const uint8_t *data, size_t len);
-int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json);
-#define VBOR_PRINT_MULTILINE (1 << 0)
-#define VBOR_PRINT_PRETTY (1 << 1)
+struct vbor *VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth);
+int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty);
 void VBOR_Destroy(struct vbor **vbor);
 
 uint64_t VBOR_GetUInt(const struct vbor *vbor);
