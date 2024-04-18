@@ -734,9 +734,7 @@ VBOB_ParseJSON(const char *json)
     case '"':
       json++;
       const char *end = get_str_end(json);
-      char *data = strndup(json, end - json);
-      VBOB_AddString(vbob, data, end - json);
-      free(data);
+      VBOB_AddString(vbob, json, end - json);
       json += (end - json) + 1;
       break;
     default:
