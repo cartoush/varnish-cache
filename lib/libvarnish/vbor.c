@@ -674,10 +674,11 @@ json_count_elements(const char *json)
   return count;
 }
 
-struct vbor *
-VBOB_ParseJSON(const char *json)
+int
+VBOB_ParseJSON(const char *json, struct vbor **vbor)
 {
   AN(json);
+  AN(vbor);
   struct vbob *vbob = VBOB_Alloc(0);
   int sign = 1;
   unsigned depth = 0;
@@ -693,7 +694,10 @@ VBOB_ParseJSON(const char *json)
     case '{':;
       size_t count = json_count_elements(json);
       if (count == (size_t)-1)
-        return NULL;
+      {
+        VBOB_Destroy(&vbob);
+        return -1;
+      }
       VBOB_AddMap(vbob, count);
       depth++;
       if (depth > vbob->max_depth)
@@ -707,7 +711,10 @@ VBOB_ParseJSON(const char *json)
     case '[':;
       count = json_count_elements(json);
       if (count == (size_t)-1)
-        return NULL;
+      {
+        VBOB_Destroy(&vbob);
+        return -1;
+      }
       VBOB_AddArray(vbob, count);
       depth++;
       if (depth > vbob->max_depth)
@@ -723,7 +730,8 @@ VBOB_ParseJSON(const char *json)
       json++;
       if (!isdigit(*json))
       {
-        return NULL;
+        VBOB_Destroy(&vbob);
+        return -1;
       }
       break;
     case '0':
@@ -774,12 +782,13 @@ VBOB_ParseJSON(const char *json)
       json += (end - json) + 1;
       break;
     default:
-      return NULL;
+      VBOB_Destroy(&vbob);
+      return -1;
     }
   }
-  struct vbor *vbor = VBOB_Finish(vbob);
+  int ret = VBOB_Finish(vbob, vbor);
   VBOB_Destroy(&vbob);
-  return vbor;
+  return ret;
 }
 
 struct vboc *
