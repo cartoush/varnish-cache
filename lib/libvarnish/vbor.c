@@ -211,20 +211,21 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   CHECK_OBJ_NOTNULL(json, VSB_MAGIC);
-  struct vboc *vboc = VBOC_Init(vbor);
+  struct vboc *vboc = VBOC_Alloc(vbor);
+  CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
   size_t idxs[vbor->max_depth];
   enum vbor_major_type types[vbor->max_depth];
   size_t depth = -1;
   size_t initial_len = VSB_len(json);
 
-  struct vbor *next = vbor;
-  do {
+  struct vbor *next;
+  enum vbor_major_type type;
+  while ((type = VBOC_Next(vboc, &next)) < VBOR_END) {
     if (pretty && depth != (size_t)-1 && !(types[depth] == VBOR_MAP && idxs[depth] % 2 == 1))
     {
       for (size_t i = 0; i < depth + 1; i++)
         VSB_putc(json, '\t');
     }
-    enum vbor_major_type type = VBOR_What(next);
     switch (type)
     {
     case VBOR_UINT:
@@ -304,7 +305,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
     {
       VSB_putc(json, '\n');
     }
-  } while ((next = VBOC_Next(vboc)) != NULL);
+  }
   VBOC_Destroy(&vboc);
   return VSB_len(json) - initial_len;
 }
