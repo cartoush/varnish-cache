@@ -782,56 +782,18 @@ VBOB_ParseJSON(const char *json)
 }
 
 struct vboc *
-VBOC_Init(struct vbor *vbor)
+VBOC_Alloc(struct vbor *vbor)
 {
   struct vboc *vboc;
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-  ALLOC_OBJ_EXTRA(vboc, sizeof(struct vboc_pos) * vbor->max_depth, VBOC_MAGIC);
+  ALLOC_OBJ(vboc, VBOC_MAGIC);
   vboc->src = vbor;
-  vboc->current = vbor;
-  vboc->depth = -1;
-  vboc->max_depth = vbor->max_depth;
-  for (unsigned i = 0; i < vboc->max_depth; i++) {
-    vboc->pos[i].magic = VBOC_POS_MAGIC;
-    vboc->pos[i].pos = -1;
-    vboc->pos[i].len = 0;
-  }
-  vboc->pos[0].pos = 0;
+  vboc->current[0].magic = 0;
   return vboc;
 }
 
-static void
-VBOC_Update_cursor(struct vboc *vboc)
-{
-  enum vbor_major_type type = VBOR_What(vboc->current);
-
-  if (type != VBOR_ARRAY && type != VBOR_MAP)
-  {
-    if (vboc->depth == (unsigned)-1)
-      return;
-    else
-      vboc->pos[vboc->depth].pos += 1;
-  }
-  if (type == VBOR_ARRAY || type == VBOR_MAP)
-  {
-    vboc->depth++;
-    assert(vboc->depth <= vboc->max_depth);
-    vboc->pos[vboc->depth].len = type == VBOR_ARRAY ? VBOR_GetArraySize(vboc->current) : VBOR_GetMapSize(vboc->current) * 2;
-    vboc->pos[vboc->depth].pos = 0;
-  }
-
-  if (vboc->depth != 0 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
-  {
-    while (vboc->depth != (unsigned)-1 && vboc->pos[vboc->depth].pos >= vboc->pos[vboc->depth].len)
-    {
-      vboc->depth--;
-      vboc->pos[vboc->depth].pos += 1;
-    }
-  }
-}
-
-struct vbor *
-VBOC_Next(struct vboc *vboc)
+enum vbor_major_type
+VBOC_Next(struct vboc *vboc, struct vbor **vbor)
 {
   CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
   enum vbor_major_type type;
@@ -839,32 +801,34 @@ VBOC_Next(struct vboc *vboc)
   size_t len;
   size_t skip = 1;
 
-  VBOC_Update_cursor(vboc);
+  *vbor = NULL;
+  if (vboc->current->magic == 0)
+  {
+    vboc->current->magic = VBOR_MAGIC;
+    if (VBOR_InitSub(vboc->src->data, vboc->src->len, vboc->src->max_depth, &vboc->current[0]) == VBOR_ERROR)
+    {
+      return VBOR_ERROR;
+    }
+    *vbor = vboc->current;
+    return VBOR_What(vboc->current);
+  }
+  if (vboc->current->len <= 0)
+  {
+    return VBOR_END;
+  }
   if (!VBOR_GetHeader(vboc->current, &type, &arg, &len))
   {
-    return NULL;
+    return VBOR_ERROR;
   }
   skip += vbor_length_encoded_size(len);
   if (type == VBOR_TEXT_STRING || type == VBOR_BYTE_STRING)
   {
     skip += len;
   }
-  struct vbor *tmp = VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip, vboc->current->max_depth);
-  if (vboc->current != vboc->src)
-  {
-    VBOR_Destroy(&vboc->current);
-  }
-  vboc->current = tmp;
-  return vboc->current;
-}
-
-struct vboc_pos *
-VBOC_Where(struct vboc *vboc, size_t *depth)
-{
-  CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
-  AN(depth);
-  *depth = vboc->depth + 1;
-  return vboc->pos;
+  if (VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip, vboc->current->max_depth, vboc->current) == -1)
+    return VBOR_ERROR;
+  *vbor = vboc->current;
+  return VBOR_What(vboc->current);
 }
 
 void VBOC_Destroy(struct vboc **vboc)

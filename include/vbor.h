@@ -47,8 +47,9 @@ enum vbor_major_type
   VBOR_TEXT_STRING,
   VBOR_ARRAY,
   VBOR_MAP,
+  VBOR_END,
   VBOR_UNKNOWN,
-  VBOR_UNINIT,
+  VBOR_ERROR,
 };
 
 struct vbor
@@ -110,15 +111,11 @@ struct vboc
   unsigned magic;
 #define VBOC_MAGIC 0x863baac8
   struct vbor *src;
-  struct vbor *current;
-  unsigned depth;
-  unsigned max_depth;
-  struct vboc_pos pos[];
+  struct vbor current[1];
 };
 
-struct vboc *VBOC_Init(struct vbor *);
-struct vbor *VBOC_Next(struct vboc *);
-struct vboc_pos *VBOC_Where(struct vboc *vboc, size_t *depth);
+struct vboc *VBOC_Alloc(struct vbor *vbor);
+enum vbor_major_type VBOC_Next(struct vboc *vboc, struct vbor **vbor);
 
 void VBOC_Destroy(struct vboc **vboc);
 
