@@ -58,10 +58,9 @@ struct vbor
   const uint8_t *data;
   size_t len;
   unsigned max_depth;
-  bool sub;
 };
 
-struct vbor *VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth);
+struct vbor *VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth);
 int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty);
 void VBOR_Destroy(struct vbor **vbor);
 

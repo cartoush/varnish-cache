@@ -168,7 +168,7 @@ vbor_decode_value_length(enum vbor_major_type type, enum vbor_argument arg, cons
 }
 
 struct vbor *
-VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth)
+VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth)
 {
   struct vbor *vbor;
   AN(data);
@@ -178,25 +178,23 @@ VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth)
   AN(vbor->data);
   memcpy((void*)vbor->data, data, len);
   vbor->len = len;
-  vbor->sub = false;
   vbor->max_depth = max_depth;
   return vbor;
 }
 
-struct vbor *
-VBOR_InitSub(const uint8_t *data, size_t len, unsigned super_depth)
+static int
+VBOR_InitSub(const uint8_t *data, size_t len, unsigned super_depth, struct vbor *vbor)
 {
-  struct vbor *vbor;
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(data);
   if (len == 0)
-  {
-    return NULL;
-  }
-  ALLOC_OBJ(vbor, VBOR_MAGIC);
+    return -1;
   vbor->data = data;
   vbor->len = len;
-  vbor->sub = true;
   switch (VBOR_What(vbor)) {
+  case VBOR_ERROR:
+  case VBOR_UNKNOWN:
+    return -1;
   case VBOR_ARRAY:
   case VBOR_MAP:
     vbor->max_depth = super_depth - 1;
@@ -205,7 +203,7 @@ VBOR_InitSub(const uint8_t *data, size_t len, unsigned super_depth)
     vbor->max_depth = super_depth;
     break;
   }
-  return vbor;
+  return 0;
 }
 
 int
@@ -315,11 +313,8 @@ void
 VBOR_Destroy(struct vbor **vbor)
 {
   CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
-  if (!(*vbor)->sub)
-  {
-    AN((*vbor)->data);
-    free((void*)(*vbor)->data);
-  }
+  AN((*vbor)->data);
+  free((void*)(*vbor)->data);
   FREE_OBJ(*vbor);
 }
 
