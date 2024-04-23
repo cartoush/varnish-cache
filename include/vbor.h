@@ -81,20 +81,21 @@ struct vbob
   struct vsb *vsb;
   unsigned max_depth;
   unsigned depth;
+  int err;
   uint8_t open[];
 };
 
 struct vbob *VBOB_Alloc(unsigned max_depth);
-struct vbor *VBOB_ParseJSON(const char *json);
+int VBOB_ParseJSON(const char *json, struct vbor **vbor);
 
-void VBOB_AddUInt(struct vbob *vbob, uint64_t value);
-void VBOB_AddNegint(struct vbob *vbob, uint64_t value);
-void VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
-void VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len);
-void VBOB_AddArray(struct vbob *vbob, size_t num_items);
-void VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
+int VBOB_AddUInt(struct vbob *vbob, uint64_t value);
+int VBOB_AddNegint(struct vbob *vbob, uint64_t value);
+int VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
+int VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len);
+int VBOB_AddArray(struct vbob *vbob, size_t num_items);
+int VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
 
-struct vbor *VBOB_Finish(struct vbob *vbob);
+int VBOB_Finish(struct vbob *vbob, struct vbor **vbor);
 void VBOB_Destroy(struct vbob **vbob);
 
 struct vboc_pos

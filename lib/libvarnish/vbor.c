@@ -472,6 +472,8 @@ VBOB_Alloc(unsigned max_depth)
   ALLOC_OBJ(vbob, VBOB_MAGIC);
   vbob->vsb = VSB_new_auto();
   vbob->max_depth = max_depth;
+  vbob->depth = 0;
+  vbob->err = 0;
   return vbob;
 }
 
@@ -484,7 +486,7 @@ VBOB_Destroy(struct vbob **vbob)
   FREE_OBJ(*vbob);
 }
 
-static void
+static int
 VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
 {
   uint8_t hdr[9] = {0};
@@ -501,62 +503,101 @@ VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
     }
     written += size_len;
   }
-  AZ(VSB_bcat(vbob->vsb, hdr, written));
+  return VSB_bcat(vbob->vsb, hdr, written);
 }
 
-void
+int
 VBOB_AddUInt(struct vbob *vbob, uint64_t value)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  VBOB_AddHeader(vbob, VBOR_UINT, value);
+  if (vbob->err)
+  {
+    return vbob->err;
+  }
+  vbob->err = VBOB_AddHeader(vbob, VBOR_UINT, value);
+  return vbob->err;
 }
 
-void
+int
 VBOB_AddNegint(struct vbob *vbob, uint64_t value)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  VBOB_AddHeader(vbob, VBOR_NEGINT, value - 1);
+  if (vbob->err)
+  {
+    return vbob->err;
+  }
+  vbob->err = VBOB_AddHeader(vbob, VBOR_NEGINT, value - 1);
+  return vbob->err;
 }
 
-void
+int
 VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  VBOB_AddHeader(vbob, VBOR_TEXT_STRING, len);
-  AZ(VSB_bcat(vbob->vsb, value, len));
+  if (vbob->err)
+  {
+    return vbob->err;
+  }
+  vbob->err = VBOB_AddHeader(vbob, VBOR_TEXT_STRING, len);
+  if (!vbob->err)
+  {
+    vbob->err = VSB_bcat(vbob->vsb, value, len);
+  }
+  return vbob->err;
 }
 
-void
+int
 VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  VBOB_AddHeader(vbob, VBOR_BYTE_STRING, len);
-  AZ(VSB_bcat(vbob->vsb, value, len));
+  if (vbob->err)
+  {
+    return vbob->err;
+  }
+  vbob->err = VBOB_AddHeader(vbob, VBOR_BYTE_STRING, len);
+  if (!vbob->err)
+  {
+    vbob->err = VSB_bcat(vbob->vsb, value, len);
+  }
+  return vbob->err;
 }
 
-void
+int
 VBOB_AddArray(struct vbob *vbob, size_t num_items)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  VBOB_AddHeader(vbob, VBOR_ARRAY, num_items);
+  if (vbob->err)
+  {
+    return vbob->err;
+  }
+  vbob->err = VBOB_AddHeader(vbob, VBOR_ARRAY, num_items);
+  return vbob->err;
 }
 
-void
+int
 VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  VBOB_AddHeader(vbob, VBOR_MAP, num_pairs);
+  if (vbob->err)
+  {
+    return vbob->err;
+  }
+  vbob->err = VBOB_AddHeader(vbob, VBOR_MAP, num_pairs);
+  return vbob->err;
 }
 
-struct vbor *
-VBOB_Finish(struct vbob *vbob)
+int
+VBOB_Finish(struct vbob *vbob, struct vbor **vbor)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  VSB_finish(vbob->vsb);
-  struct vbor *vbor = VBOR_Init((const uint8_t*)VSB_data(vbob->vsb),
-                                VSB_len(vbob->vsb), vbob->max_depth);
-  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-  return vbor;
+  if (vbob->err || VSB_finish(vbob->vsb) == -1)
+  {
+    return -1;
+  }
+  *vbor = VBOR_Alloc((const uint8_t*)VSB_data(vbob->vsb),
+                  VSB_len(vbob->vsb), vbob->max_depth);
+  CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
+  return 0;
 }
 
 static bool
