@@ -74,6 +74,12 @@ size_t VBOR_GetMapSize(const struct vbor *vbor);
 
 enum vbor_major_type VBOR_What(const struct vbor *vbor);
 
+struct vbob_pos
+{
+  size_t pos;
+  size_t len;
+};
+
 struct vbob
 {
   unsigned magic;
@@ -82,7 +88,7 @@ struct vbob
   unsigned max_depth;
   unsigned depth;
   int err;
-  uint8_t open[];
+  struct vbob_pos pos[];
 };
 
 struct vbob *VBOB_Alloc(unsigned max_depth);
@@ -97,14 +103,6 @@ int VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
 
 int VBOB_Finish(struct vbob *vbob, struct vbor **vbor);
 void VBOB_Destroy(struct vbob **vbob);
-
-struct vboc_pos
-{
-  unsigned magic;
-#define VBOC_POS_MAGIC 0xcf7664ba
-  size_t pos;
-  size_t len;
-};
 
 struct vboc
 {
