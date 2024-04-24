@@ -832,6 +832,7 @@ int
 main(void)
 {
   struct vbob *vbob = VBOB_Alloc(10);
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 
   VBOB_AddArray(vbob, 4);
   VBOB_AddUInt(vbob, 5000000000);
@@ -866,30 +867,28 @@ main(void)
   struct vboc *vboc = VBOC_Alloc(vbor);
   
   struct vbor *next = NULL;
-  enum vbor_major_type type = VBOC_Next(vboc, &next);
-  assert(type == VBOR_ARRAY);
+  assert(VBOC_Next(vboc, &next) == VBOR_ARRAY);
 
-  type = VBOC_Next(vboc, &next);
-  assert(type == VBOR_UINT);
+  assert(VBOC_Next(vboc, &next) == VBOR_UINT);
   size_t len = 0;
   const uint8_t *data = NULL;
   assert(VBOR_GetUInt(next) == 5000000000);
 
-  VBOC_Next(vboc, &next);
+  assert(VBOC_Next(vboc, &next) == VBOR_MAP);
   assert(VBOR_GetMapSize(next) == 3);
 
-  VBOC_Next(vboc, &next);
+  assert(VBOC_Next(vboc, &next) == VBOR_NEGINT);
   assert(VBOR_GetNegint(next) == 3000);
 
-  VBOC_Next(vboc, &next);
+  assert(VBOC_Next(vboc, &next) == VBOR_TEXT_STRING);
   data = (const uint8_t*)VBOR_GetString(next, &len);
   assert(len == 5);
   assert(memcmp(data, "hello", 5) == 0);
 
-  VBOC_Next(vboc, &next);
+  assert(VBOC_Next(vboc, &next) == VBOR_UINT);
   assert(VBOR_GetUInt(next) == 256000);
 
-  VBOC_Next(vboc, &next);
+  assert(VBOC_Next(vboc, &next) == VBOR_BYTE_STRING);
   data = VBOR_GetByteString(next, &len);
   assert(memcmp(data, "world", 5) == 0);
   assert(len == 5);
@@ -907,7 +906,8 @@ main(void)
   assert(json_count_elements(json) == 3);
   assert(json_count_elements(json + 23) == 4);
 
-  assert(VBOB_ParseJSON(json, &vbor) != -1);
+  assert(VBOB_ParseJSON(json, &vbor, 1) == -1);
+  assert(VBOB_ParseJSON(json, &vbor, 2) != -1);
   assert(vbor->max_depth == 2);
   assert(VBOR_What(vbor) == VBOR_MAP);
   for (size_t i = 0; i < vbor->len; i++)
@@ -915,6 +915,107 @@ main(void)
     printf("%.2X ", vbor->data[i]);
   }
   printf("\n");
+  VBOR_Destroy(&vbor);
+
+  vbob = VBOB_Alloc(10);
+  assert(VBOB_AddUInt(vbob, 5000000000) == 0);
+  assert(VBOB_AddString(vbob, "hello", 5) == -1);
+
+  VBOB_Destroy(&vbob);
+
+  vbob = VBOB_Alloc(1);
+  assert(VBOB_AddArray(vbob, 2) == 0);
+  assert(VBOB_AddArray(vbob, 2) == -1);
+  VBOB_Destroy(&vbob);
+
+  vbob = VBOB_Alloc(1);
+  assert(VBOB_AddArray(vbob, 2) == 0);
+  assert(VBOB_AddUInt(vbob, 1) == 0);
+  assert(VBOB_AddUInt(vbob, 2) == 0);
+  assert(VBOB_AddUInt(vbob, 3) == -1);
+  VBOB_Destroy(&vbob);
+
+  vbob = VBOB_Alloc(3);
+  assert(VBOB_AddMap(vbob, 3) == 0);
+  assert(vbob->depth == 0);
+    assert(VBOB_AddUInt(vbob, 1) == 0);
+    assert(VBOB_AddArray(vbob, 2) == 0);
+      assert(vbob->depth == 1);
+      assert(VBOB_AddUInt(vbob, 2) == 0);
+      assert(VBOB_AddUInt(vbob, 3) == 0);
+    assert(VBOB_AddUInt(vbob, 4) == 0);
+    assert(VBOB_AddArray(vbob, 3) == 0);
+      assert(vbob->depth == 1);
+      assert(VBOB_AddArray(vbob, 1) == 0);
+        assert(vbob->depth == 2);
+        assert(VBOB_AddString(vbob, "hello", 5) == 0);
+      assert(VBOB_AddArray(vbob, 3) == 0);
+        assert(vbob->depth == 2);
+        assert(VBOB_AddUInt(vbob, 1) == 0);
+        assert(VBOB_AddUInt(vbob, 2) == 0);
+        assert(VBOB_AddUInt(vbob, 3) == 0);
+      assert(VBOB_AddUInt(vbob, 4) == 0);
+    assert(VBOB_AddUInt(vbob, 5) == 0);
+    assert(VBOB_AddUInt(vbob, 6) == 0);
+    assert(VBOB_AddUInt(vbob, 7) == -1);
+  VBOB_Destroy(&vbob);
+
+  vbob = VBOB_Alloc(3);
+  assert(VBOB_AddMap(vbob, 3) == 0);
+  assert(vbob->depth == 0);
+  assert(VBOB_AddUInt(vbob, 1) == 0);
+  assert(VBOB_AddArray(vbob, 2) == 0);
+  assert(vbob->depth == 1);
+  assert(VBOB_AddUInt(vbob, 2) == 0);
+  assert(VBOB_AddUInt(vbob, 3) == 0);
+  assert(VBOB_AddUInt(vbob, 4) == 0);
+  assert(VBOB_AddArray(vbob, 3) == 0);
+  assert(vbob->depth == 1);
+  assert(VBOB_AddArray(vbob, 1) == 0);
+  assert(vbob->depth == 2);
+  assert(VBOB_AddString(vbob, "hello", 5) == 0);
+  assert(VBOB_AddArray(vbob, 3) == 0);
+  assert(vbob->depth == 2);
+  assert(VBOB_AddUInt(vbob, 1) == 0);
+  assert(VBOB_AddUInt(vbob, 2) == 0);
+  assert(VBOB_AddUInt(vbob, 3) == 0);
+  assert(VBOB_AddUInt(vbob, 4) == 0);
+  assert(VBOB_AddUInt(vbob, 5) == 0);
+  assert(VBOB_AddUInt(vbob, 6) == 0);
+  assert(VBOB_AddMap(vbob, 3) == -1);
+  VBOB_Destroy(&vbob);
+
+  vbob = VBOB_Alloc(3);
+  assert(VBOB_AddMap(vbob, 3) == 0);
+  assert(vbob->depth == 0);
+    assert(VBOB_AddUInt(vbob, 1) == 0);
+    assert(VBOB_AddArray(vbob, 2) == 0);
+      assert(vbob->depth == 1);
+      assert(VBOB_AddUInt(vbob, 2) == 0);
+      assert(VBOB_AddUInt(vbob, 3) == 0);
+    assert(VBOB_AddUInt(vbob, 4) == 0);
+    assert(VBOB_AddArray(vbob, 3) == 0);
+      assert(vbob->depth == 1);
+      assert(VBOB_AddArray(vbob, 1) == 0);
+        assert(vbob->depth == 2);
+        assert(VBOB_AddString(vbob, "hello", 5) == 0);
+      assert(VBOB_AddArray(vbob, 3) == 0);
+        assert(vbob->depth == 2);
+        assert(VBOB_AddUInt(vbob, 1) == 0);
+        assert(VBOB_AddUInt(vbob, 2) == 0);
+        assert(VBOB_AddUInt(vbob, 3) == 0);
+      assert(VBOB_AddUInt(vbob, 4) == 0);
+    assert(VBOB_AddUInt(vbob, 5) == 0);
+    assert(VBOB_AddUInt(vbob, 6) == 0);
+  assert(VBOB_Finish(vbob, &vbor) == 0);
+  VBOB_Destroy(&vbob);
+
+  vsb = VSB_new_auto();
+  assert(VBOR_PrintJSON(vbor, vsb, true) != -1);
+  VSB_finish(vsb);
+  printf("%s\n", VSB_data(vsb));
+  VSB_destroy(&vsb);
+
   VBOR_Destroy(&vbor);
 
   return EXIT_SUCCESS;
