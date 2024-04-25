@@ -638,15 +638,9 @@ VBOB_AddSimple(struct vbob *vbob, uint8_t value)
 }
 
 int
-VBOB_AddFalse(struct vbob *vbob)
+VBOB_AddBool(struct vbob *vbob, bool value)
 {
-  return VBOB_AddSimple(vbob, 20);
-}
-
-int
-VBOB_AddTrue(struct vbob *vbob)
-{
-  return VBOB_AddSimple(vbob, 21);
+  return VBOB_AddSimple(vbob, value ? 21 : 20);
 }
 
 int
