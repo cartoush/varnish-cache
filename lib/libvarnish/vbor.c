@@ -563,6 +563,136 @@ VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
   return vbob->err;
 }
 
+static void
+invert_bytes(uint8_t *val, uint8_t len)
+{
+  uint8_t tmp = 0;
+  printf("before: ");
+  for (size_t i = 0; i < len; i++)
+  {
+    printf("%.2X ", val[i]);
+  }
+  printf("\n");
+
+  for (uint8_t i = 0; i < len / 2; i++)
+  {
+    tmp = val[i];
+    val[i] = val[len - i - 1];
+    val[len - i - 1] = tmp;
+  }
+
+  printf("after: ");
+  for (size_t i = 0; i < len; i++)
+  {
+    printf("%.2X ", val[i]);
+  }
+  printf("\n");
+}
+
+static int
+VBOB_AddHeaderFloat(struct vbob *vbob, char len)
+{
+  switch (len) {
+    case 8:
+      len = 27;
+      break;
+    case 4:
+      len = 26;
+      break;
+    case 1:
+      len = 24;
+      break;
+    case 0:
+      break;
+    case 2:
+    // Half precision floats not supported (yet?)
+    default:
+      return -1;
+  }
+  char hdr = (VBOR_FLOAT_SIMPLE << 5) | len;
+  return VSB_bcat(vbob->vsb, &hdr, 1);
+}
+
+int
+VBOB_AddSimple(struct vbob *vbob, uint8_t value)
+{
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  if (vbob->err)
+    return vbob->err;
+  vbob->err = VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0);
+  uint8_t wr[2];
+  wr[0] = VBOR_FLOAT_SIMPLE << 5; 
+  if (value <= 23)
+  {
+    wr[0] |= value;
+    return VSB_bcat(vbob->vsb, wr, 1);
+  }
+  else if (value < 32)
+  {
+    vbob->err = -1;
+    return vbob->err;
+  }
+  wr[0] |= 24;
+  wr[1] = value;
+  return VSB_bcat(vbob->vsb, wr, 2);
+}
+
+int
+VBOB_AddFalse(struct vbob *vbob)
+{
+  return VBOB_AddSimple(vbob, 20);
+}
+
+int
+VBOB_AddTrue(struct vbob *vbob)
+{
+  return VBOB_AddSimple(vbob, 21);
+}
+
+int
+VBOB_AddNull(struct vbob *vbob)
+{
+  return VBOB_AddSimple(vbob, 22);
+}
+
+int
+VBOB_AddUndefined(struct vbob *vbob)
+{
+  return VBOB_AddSimple(vbob, 23);
+}
+
+int
+VBOB_AddFloat(struct vbob *vbob, float value)
+{
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  if (vbob->err)
+    return vbob->err;
+  vbob->err = VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0);
+  if (vbob->err)
+    return vbob->err;
+  vbob->err = VBOB_AddHeaderFloat(vbob, 4);
+  if (vbob->err)
+    return vbob->err;
+  invert_bytes((uint8_t*)&value, 4);
+  return VSB_bcat(vbob->vsb, &value, 4);
+}
+
+int
+VBOB_AddDouble(struct vbob *vbob, double value)
+{
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  if (vbob->err)
+    return vbob->err;
+  vbob->err = VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0);
+  if (vbob->err)
+    return vbob->err;
+  vbob->err = VBOB_AddHeaderFloat(vbob, 8);
+  if (vbob->err)
+    return vbob->err;
+  invert_bytes((uint8_t *)&value, 8);
+  return VSB_bcat(vbob->vsb, &value, 8);
+}
+
 int
 VBOB_Finish(struct vbob *vbob, struct vbor **vbor)
 {

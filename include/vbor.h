@@ -47,6 +47,8 @@ enum vbor_major_type
   VBOR_TEXT_STRING,
   VBOR_ARRAY,
   VBOR_MAP,
+  VBOR_TAG,
+  VBOR_FLOAT_SIMPLE,
   VBOR_END,
   VBOR_UNKNOWN,
   VBOR_ERROR,
@@ -100,6 +102,13 @@ int VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
 int VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len);
 int VBOB_AddArray(struct vbob *vbob, size_t num_items);
 int VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
+int VBOB_AddSimple(struct vbob *vbob, uint8_t value);
+int VBOB_AddFalse(struct vbob *vbob);
+int VBOB_AddTrue(struct vbob *vbob);
+int VBOB_AddNull(struct vbob *vbob);
+int VBOB_Undefined(struct vbob *vbob);
+int VBOB_AddFloat(struct vbob *vbob, float value);
+int VBOB_AddDouble(struct vbob *vbob, double value);
 
 int VBOB_Finish(struct vbob *vbob, struct vbor **vbor);
 void VBOB_Destroy(struct vbob **vbob);
