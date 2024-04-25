@@ -1148,5 +1148,24 @@ main(void)
 
   VBOR_Destroy(&vbor);
 
+  vbob = VBOB_Alloc(1);
+  assert(VBOB_AddArray(vbob, 8) == 0);
+  assert(VBOB_AddFloat(vbob, 3.4028234663852886e+38) == 0);
+  assert(VBOB_AddDouble(vbob, -4.1) == 0);
+  assert(VBOB_AddSimple(vbob, 8) == 0);
+  assert(VBOB_AddSimple(vbob, 135) == 0);
+  assert(VBOB_AddFalse(vbob) == 0);
+  assert(VBOB_AddTrue(vbob) == 0);
+  assert(VBOB_AddNull(vbob) == 0);
+  assert(VBOB_AddUndefined(vbob) == 0);
+  assert(VBOB_Finish(vbob, &vbor) == 0);
+  VBOB_Destroy(&vbob);
+  for (size_t i = 0; i < vbor->len; i++)
+  {
+    printf("%.2X ", vbor->data[i]);
+  }
+  printf("\n");
+  VBOR_Destroy(&vbor);
+
   return EXIT_SUCCESS;
 }
