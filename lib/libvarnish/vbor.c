@@ -1148,8 +1148,8 @@ main(void)
   assert(VBOB_AddDouble(vbob, -4.1) == 0);
   assert(VBOB_AddSimple(vbob, 8) == 0);
   assert(VBOB_AddSimple(vbob, 135) == 0);
-  assert(VBOB_AddFalse(vbob) == 0);
-  assert(VBOB_AddTrue(vbob) == 0);
+  assert(VBOB_AddBool(vbob, true) == 0);
+  assert(VBOB_AddBool(vbob, false) == 0);
   assert(VBOB_AddNull(vbob) == 0);
   assert(VBOB_AddUndefined(vbob) == 0);
   assert(VBOB_Finish(vbob, &vbor) == 0);
