@@ -73,6 +73,10 @@ const char *VBOR_GetString(const struct vbor *vbor, size_t *len);
 const uint8_t *VBOR_GetByteString(const struct vbor *vbor, size_t *len);
 size_t VBOR_GetArraySize(const struct vbor *vbor);
 size_t VBOR_GetMapSize(const struct vbor *vbor);
+uint8_t VBOR_GetSimple(const struct vbor *vbor);
+bool VBOR_GetBool(const struct vbor *vbor);
+float VBOR_GetFloat(const struct vbor *vbor);
+double VBOR_GetDouble(const struct vbor *vbor);
 
 enum vbor_major_type VBOR_What(const struct vbor *vbor);
 
