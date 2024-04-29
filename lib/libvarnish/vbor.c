@@ -208,35 +208,52 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
     }
     switch (type)
     {
-    case VBOR_UINT:
-      VSB_printf(json, "%lu", VBOR_GetUInt(next));
+    case VBOR_UINT:;
+      uint64_t uval = 0;
+      if (VBOR_GetUInt(next, &uval))
+        return -1;
+      VSB_printf(json, "%lu", uval);
       break;
-    case VBOR_NEGINT:
-      VSB_printf(json, "-%lu", VBOR_GetNegint(next));
+    case VBOR_NEGINT:;
+      uint64_t nval = 0;
+      if (VBOR_GetNegint(next, &nval))
+        return -1;
+      VSB_printf(json, "-%lu", nval);
       break;
     case VBOR_TEXT_STRING:;
-      size_t data_len = 0;
-      const uint8_t *data = (const uint8_t*)VBOR_GetString(next, &data_len);
+      size_t tdata_len = 0;
+      const char *tdata = NULL;
+      if (VBOR_GetString(next, (const char**)&tdata, &tdata_len))
+        return -1;
       VSB_putc(json, '"');
-      VSB_bcat(json, data, data_len);
-      VSB_putc(json, '"');
-      break;
-    case VBOR_BYTE_STRING:
-      data = VBOR_GetByteString(next, &data_len);
-      VSB_putc(json, '"');
-      VENC_Encode_Base64(json, data, data_len);
+      VSB_bcat(json, tdata, tdata_len);
       VSB_putc(json, '"');
       break;
-    case VBOR_ARRAY:
+    case VBOR_BYTE_STRING:;
+      size_t bdata_len = 0;
+      const uint8_t *bdata = NULL;
+      if (VBOR_GetByteString(next, &bdata, &bdata_len))
+        return -1;
+      VSB_putc(json, '"');
+      VENC_Encode_Base64(json, bdata, bdata_len);
+      VSB_putc(json, '"');
+      break;
+    case VBOR_ARRAY:;
+      size_t num_items = 0;
       VSB_printf(json, "[");
       depth++;
-      idxs[depth] = VBOR_GetArraySize(next);
+      if (VBOR_GetArraySize(next, &num_items))
+        return -1;
+      idxs[depth] = num_items;
       types[depth] = VBOR_ARRAY;
       break;
-    case VBOR_MAP:
+    case VBOR_MAP:;
+      size_t num_pairs = 0;
       VSB_printf(json, "{");
       depth++;
-      idxs[depth] = VBOR_GetMapSize(next) * 2;
+      if (VBOR_GetMapSize(next, &num_pairs))
+        return -1;
+      idxs[depth] = num_pairs * 2;
       types[depth] = VBOR_MAP;
       break;
     default:
@@ -319,7 +336,6 @@ VBOR_GetHeader(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_ar
   AN(type);
   AN(arg);
   AN(len);
-
   if (!VBOR_GetTypeArg(vbor, type, arg))
     return false;
   *len = vbor_decode_value_length(*type, *arg, vbor->data, vbor->len);
@@ -328,10 +344,11 @@ VBOR_GetHeader(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_ar
   return true;
 }
 
-uint64_t
-VBOR_GetUInt(const struct vbor *vbor)
+int
+VBOR_GetUInt(const struct vbor *vbor, uint64_t *res)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(res);
   enum vbor_major_type type = VBOR_UNKNOWN;
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   size_t len = - 1;
@@ -339,13 +356,15 @@ VBOR_GetUInt(const struct vbor *vbor)
     return -1;
   if (type != VBOR_UINT)
     return -1;
-  return len;
+  *res = len;
+  return 0;
 }
 
-uint64_t
-VBOR_GetNegint(const struct vbor *vbor)
+int
+VBOR_GetNegint(const struct vbor *vbor, uint64_t *res)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(res);
   enum vbor_major_type type = VBOR_UNKNOWN;
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   size_t len = - 1;
@@ -353,11 +372,11 @@ VBOR_GetNegint(const struct vbor *vbor)
     return -1;
   if (type != VBOR_NEGINT)
     return -1;
-  return len + 1;
+  *res = len + 1;
+  return 0;
 }
 
-const char *
-VBOR_GetString(const struct vbor *vbor, size_t *len)
+int VBOR_GetString(const struct vbor *vbor, const char **res, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(len);
@@ -365,14 +384,15 @@ VBOR_GetString(const struct vbor *vbor, size_t *len)
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   *len = -1;
   if (!VBOR_GetHeader(vbor, &type, &arg, len))
-    return NULL;
+    return -1;
   if (type != VBOR_TEXT_STRING)
-    return NULL;
-  return (const char*)vbor->data + 1 + vbor_length_encoded_size(*len);
+    return -1;
+  *res = (const char*)vbor->data + 1 + vbor_length_encoded_size(*len);
+  return 0;
 }
 
-const uint8_t *
-VBOR_GetByteString(const struct vbor *vbor, size_t *len)
+int
+VBOR_GetByteString(const struct vbor *vbor, const uint8_t **res, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(len);
@@ -380,99 +400,108 @@ VBOR_GetByteString(const struct vbor *vbor, size_t *len)
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   *len = - 1;
   if (!VBOR_GetHeader(vbor, &type, &arg, len))
-    return NULL;
+    return -1;
   if (type != VBOR_BYTE_STRING)
-    return NULL;
-  return vbor->data + 1 + vbor_length_encoded_size(*len);
+    return -1;
+  *res = vbor->data + 1 + vbor_length_encoded_size(*len);
+  return 0;
 }
 
-size_t VBOR_GetArraySize(const struct vbor *vbor)
+int
+VBOR_GetArraySize(const struct vbor *vbor, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(len);
   enum vbor_major_type type = VBOR_UNKNOWN;
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
-  size_t len = -1;
-  if (!VBOR_GetHeader(vbor, &type, &arg, &len))
+  if (!VBOR_GetHeader(vbor, &type, &arg, len))
     return -1;
   if (type != VBOR_ARRAY)
     return -1;
-  return len;
+  return 0;
 }
 
-size_t VBOR_GetMapSize(const struct vbor *vbor)
+int
+VBOR_GetMapSize(const struct vbor *vbor, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(len);
   enum vbor_major_type type = VBOR_UNKNOWN;
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
-  size_t len = -1;
-  if (!VBOR_GetHeader(vbor, &type, &arg, &len))
+  if (!VBOR_GetHeader(vbor, &type, &arg, len))
     return -1;
   if (type != VBOR_MAP)
     return -1;
-  return len;
+  return 0;
 }
 
-uint8_t VBOR_GetSimple(const struct vbor *vbor)
+int
+VBOR_GetSimple(const struct vbor *vbor, uint8_t *res)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(res);
   enum vbor_major_type type = VBOR_UNKNOWN;
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
-  uint8_t value = 0;
   if (!VBOR_GetTypeArg(vbor, &type, &arg))
     return -1;
   if (type != VBOR_FLOAT_SIMPLE)
     return -1;
   if (arg == VBOR_ARG_5BITS)
-    value = vbor->data[0] & 0b00011111;
+    *res = vbor->data[0] & 0b00011111;
   else if (arg == VBOR_ARG_1BYTE)
-    value = vbor->data[1];
+    *res = vbor->data[1];
   else
     return -1;
-  if (value >= 24 && value < 32)
+  if (*res >= 24 && *res < 32)
     return -1;
-  return value;
+  return 0;
 }
 
-float VBOR_GetFloat(const struct vbor *vbor)
+int
+VBOR_GetFloat(const struct vbor *vbor, float *res)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(res);
   enum vbor_major_type type = VBOR_UNKNOWN;
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
-  float value = 0;
   if (!VBOR_GetTypeArg(vbor, &type, &arg))
     return -1;
   if (type != VBOR_FLOAT_SIMPLE)
     return -1;
   if (arg != VBOR_ARG_4BYTES)
     return -1;
-  memcpy(&value, vbor->data + 1, 4);
-  invert_bytes((uint8_t*)&value, 4);
-  return value;
+  memcpy(res, vbor->data + 1, 4);
+  invert_bytes((uint8_t*)res, 4);
+  return 0;
 }
 
-double VBOR_GetDouble(const struct vbor *vbor)
+int
+VBOR_GetDouble(const struct vbor *vbor, double *res)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(res);
   enum vbor_major_type type = VBOR_UNKNOWN;
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
-  double value = -1;
   if (!VBOR_GetTypeArg(vbor, &type, &arg))
     return -1;
   if (type != VBOR_FLOAT_SIMPLE)
     return -1;
   if (arg != VBOR_ARG_4BYTES)
     return -1;
-  memcpy(&value, vbor->data + 1, 8);
-  invert_bytes((uint8_t *)&value, 8);
-  return value;
+  memcpy(res, vbor->data + 1, 8);
+  invert_bytes((uint8_t *)res, 8);
+  return 0;
 }
 
-bool VBOR_GetBool(const struct vbor *vbor)
+int
+VBOR_GetBool(const struct vbor *vbor, bool *res)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(res);
   if (vbor->data[0] != 0xF4 && vbor->data[0] != 0xF5)
-    return false; // Obviously not good
-  return vbor->data[0] == 0xF5;
+    return -1;
+  *res = vbor->data[0] == 0xF5;
+  return 0;
 }
 
 enum vbor_major_type
@@ -1046,8 +1075,10 @@ main(void)
     printf("%.2X ", vbor->data[i]);
   }
   printf("\n");
-  
-  assert(VBOR_GetArraySize(vbor) == 4);
+
+  size_t num_items = 0;
+  assert(VBOR_GetArraySize(vbor, &num_items) == 0);
+  assert(num_items == 4);
 
   struct vboc *vboc = VBOC_Alloc(vbor);
   

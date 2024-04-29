@@ -67,16 +67,16 @@ struct vbor *VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth);
 int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty);
 void VBOR_Destroy(struct vbor **vbor);
 
-uint64_t VBOR_GetUInt(const struct vbor *vbor);
-uint64_t VBOR_GetNegint(const struct vbor *vbor);
-const char *VBOR_GetString(const struct vbor *vbor, size_t *len);
-const uint8_t *VBOR_GetByteString(const struct vbor *vbor, size_t *len);
-size_t VBOR_GetArraySize(const struct vbor *vbor);
-size_t VBOR_GetMapSize(const struct vbor *vbor);
-uint8_t VBOR_GetSimple(const struct vbor *vbor);
-bool VBOR_GetBool(const struct vbor *vbor);
-float VBOR_GetFloat(const struct vbor *vbor);
-double VBOR_GetDouble(const struct vbor *vbor);
+int VBOR_GetUInt(const struct vbor *vbor, uint64_t *res);
+int VBOR_GetNegint(const struct vbor *vbor, uint64_t *res);
+int VBOR_GetString(const struct vbor *vbor, const char **res, size_t *len);
+int VBOR_GetByteString(const struct vbor *vbor, const uint8_t **res, size_t *len);
+int VBOR_GetArraySize(const struct vbor *vbor, size_t *len);
+int VBOR_GetMapSize(const struct vbor *vbor, size_t *len);
+int VBOR_GetSimple(const struct vbor *vbor, uint8_t *res);
+int VBOR_GetBool(const struct vbor *vbor, bool *res);
+int VBOR_GetFloat(const struct vbor *vbor, float *res);
+int VBOR_GetDouble(const struct vbor *vbor, double *res);
 
 enum vbor_major_type VBOR_What(const struct vbor *vbor);
 
