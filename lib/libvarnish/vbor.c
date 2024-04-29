@@ -1087,26 +1087,35 @@ main(void)
 
   assert(VBOC_Next(vboc, &next) == VBOR_UINT);
   size_t len = 0;
-  const uint8_t *data = NULL;
-  assert(VBOR_GetUInt(next) == 5000000000);
 
+  size_t uval = 0;
+  assert(VBOR_GetUInt(next, &uval) == 0);
+  assert(uval == 5000000000);
+
+  size_t num_pairs = 0;
   assert(VBOC_Next(vboc, &next) == VBOR_MAP);
-  assert(VBOR_GetMapSize(next) == 3);
+  assert(VBOR_GetMapSize(next, &num_pairs) == 0);
+  assert(num_pairs == 3);
 
+  size_t nval = 0;
   assert(VBOC_Next(vboc, &next) == VBOR_NEGINT);
-  assert(VBOR_GetNegint(next) == 3000);
+  assert(VBOR_GetNegint(next, &nval) == 0);
+  assert(nval == 3000);
 
+  const char *tdata = NULL;
   assert(VBOC_Next(vboc, &next) == VBOR_TEXT_STRING);
-  data = (const uint8_t*)VBOR_GetString(next, &len);
+  assert(VBOR_GetString(next, &tdata, &len) == 0);
   assert(len == 5);
-  assert(memcmp(data, "hello", 5) == 0);
+  assert(memcmp(tdata, "hello", 5) == 0);
 
   assert(VBOC_Next(vboc, &next) == VBOR_UINT);
-  assert(VBOR_GetUInt(next) == 256000);
+  assert(VBOR_GetUInt(next, &uval) == 0);
+  assert(uval == 256000);
 
+  const uint8_t *bdata = NULL;
   assert(VBOC_Next(vboc, &next) == VBOR_BYTE_STRING);
-  data = VBOR_GetByteString(next, &len);
-  assert(memcmp(data, "world", 5) == 0);
+  assert(VBOR_GetByteString(next, &bdata, &len) == 0);
+  assert(memcmp(bdata, "world", 5) == 0);
   assert(len == 5);
 
   VBOC_Destroy(&vboc);
