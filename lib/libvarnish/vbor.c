@@ -106,8 +106,41 @@ vbor_decode_type(uint8_t data)
 {
   enum vbor_major_type type = data >> 5;
 
-  if (type < VBOR_UINT || type > VBOR_MAP)
+  if (type > VBOR_FLOAT_SIMPLE)
     type = VBOR_UNKNOWN;
+  if (type == VBOR_FLOAT_SIMPLE)
+  {
+    if (data >= (VBOR_FLOAT_SIMPLE << 5) + 28)
+      type = VBOR_ERROR;
+    else {
+      switch (data)
+      {
+      case (VBOR_FLOAT_SIMPLE << 5) + 27:
+        type = VBOR_DOUBLE;
+        break;
+      case (VBOR_FLOAT_SIMPLE << 5) + 26:
+        type = VBOR_FLOAT;
+        break;
+      case (VBOR_FLOAT_SIMPLE << 5) + 25:
+        type = VBOR_FLOAT;
+        break;
+      case (VBOR_FLOAT_SIMPLE << 5) + 23:
+        type = VBOR_UNDEFINED;
+        break;
+      case (VBOR_FLOAT_SIMPLE << 5) + 22:
+        type = VBOR_NULL;
+        break;
+      case (VBOR_FLOAT_SIMPLE << 5) + 21:
+      case (VBOR_FLOAT_SIMPLE << 5) + 20:
+        type = VBOR_BOOL;
+        break;
+      case (VBOR_FLOAT_SIMPLE << 5) + 24:
+      default:
+        type = VBOR_SIMPLE;
+        break;
+      }
+    }
+  }
   return type;
 }
 
@@ -255,6 +288,36 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
         return -1;
       idxs[depth] = num_pairs * 2;
       types[depth] = VBOR_MAP;
+      break;
+    case VBOR_SIMPLE:;
+      uint8_t sval = 0;
+      if (VBOR_GetSimple(next, &sval))
+        return -1;
+      VSB_printf(json, "%u", sval);
+      break;
+    case VBOR_FLOAT:;
+      float fval = 0;
+      if (VBOR_GetFloat(next, &fval))
+        return -1;
+      VSB_printf(json, "%f", fval);
+      break;
+    case VBOR_DOUBLE:;
+      double dval = 0;
+      if (VBOR_GetDouble(next, &dval))
+        return -1;
+      VSB_printf(json, "%f", dval);
+      break;
+    case VBOR_BOOL:;
+      bool bval;
+      if (VBOR_GetBool(next, &bval))
+        return -1;
+      VSB_printf(json, "%s", bval ? "true" : "false");
+      break;
+    case VBOR_NULL:
+      VSB_printf(json, "null");
+      break;
+    case VBOR_UNDEFINED:
+      VSB_printf(json, "undefined");
       break;
     default:
       break;
