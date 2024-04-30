@@ -444,7 +444,7 @@ VBOR_GetSimple(const struct vbor *vbor, uint8_t *res)
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   if (!VBOR_GetTypeArg(vbor, &type, &arg))
     return -1;
-  if (type != VBOR_FLOAT_SIMPLE)
+  if (type != VBOR_SIMPLE)
     return -1;
   if (arg == VBOR_ARG_5BITS)
     *res = vbor->data[0] & 0b00011111;
@@ -466,7 +466,7 @@ VBOR_GetFloat(const struct vbor *vbor, float *res)
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   if (!VBOR_GetTypeArg(vbor, &type, &arg))
     return -1;
-  if (type != VBOR_FLOAT_SIMPLE)
+  if (type != VBOR_FLOAT)
     return -1;
   if (arg != VBOR_ARG_4BYTES)
     return -1;
@@ -484,9 +484,9 @@ VBOR_GetDouble(const struct vbor *vbor, double *res)
   enum vbor_argument arg = VBOR_ARG_UNKNOWN;
   if (!VBOR_GetTypeArg(vbor, &type, &arg))
     return -1;
-  if (type != VBOR_FLOAT_SIMPLE)
+  if (type != VBOR_DOUBLE)
     return -1;
-  if (arg != VBOR_ARG_4BYTES)
+  if (arg != VBOR_ARG_8BYTES)
     return -1;
   memcpy(res, vbor->data + 1, 8);
   invert_bytes((uint8_t *)res, 8);
