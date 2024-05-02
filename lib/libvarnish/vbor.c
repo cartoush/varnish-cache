@@ -241,6 +241,9 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
   struct vbor *next;
   enum vbor_major_type type;
   while ((type = VBOC_Next(vboc, &next)) < VBOR_END) {
+    if (type == VBOR_TAG) {
+      continue;
+    }
     if (pretty && depth != (size_t)-1 && !(types[depth] == VBOR_MAP && idxs[depth] % 2 == 1))
     {
       for (size_t i = 0; i < depth + 1; i++)
@@ -635,7 +638,7 @@ VBOB_Update_cursor(struct vbob *vbob, enum vbor_major_type type, size_t len)
       }
       return 0;
     }
-    else
+    else if (type != VBOR_TAG)
       vbob->pos[vbob->depth].pos += 1;
   }
   else
