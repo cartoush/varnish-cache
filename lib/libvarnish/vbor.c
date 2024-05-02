@@ -195,6 +195,13 @@ VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth)
   return vbor;
 }
 
+struct vbor *
+VBOR_Clone(const struct vbor *vbor)
+{
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  return VBOR_Alloc(vbor->data, vbor->len, vbor->max_depth);
+}
+
 static int
 VBOR_InitSub(const uint8_t *data, size_t len, unsigned super_depth, struct vbor *vbor)
 {

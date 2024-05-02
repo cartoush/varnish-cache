@@ -72,6 +72,7 @@ struct vbor
 };
 
 struct vbor *VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth);
+struct vbor *VBOR_Clone(const struct vbor *vbor);
 int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty);
 void VBOR_Destroy(struct vbor **vbor);
 
