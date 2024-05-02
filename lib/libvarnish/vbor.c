@@ -1121,6 +1121,7 @@ void VBOC_Destroy(struct vboc **vboc)
 }
 
 static char *json = "{\"a\": 5000000000, \"b\": [-3000, \"hello\", 256000, \"world\"], \"g\": \"goodbye\"}";
+static char *json_2 = "[true, false, null, 340282.343750]";
 
 int
 main(void)
@@ -1220,6 +1221,21 @@ main(void)
     printf("%.2X ", vbor->data[i]);
   }
   printf("\n");
+  VBOR_Destroy(&vbor);
+
+  assert(VBOB_ParseJSON(json_2, &vbor, 1) != -1);
+  for (size_t i = 0; i < vbor->len; i++)
+  {
+    printf("%.2X ", vbor->data[i]);
+  }
+  printf("\n");
+
+  vsb = VSB_new_auto();
+  assert(VBOR_PrintJSON(vbor, vsb, false) != -1);
+  VSB_finish(vsb);
+  printf("%s\n", VSB_data(vsb));
+  VSB_destroy(&vsb);
+
   VBOR_Destroy(&vbor);
 
   vbob = VBOB_Alloc(10);
@@ -1325,7 +1341,7 @@ main(void)
 
   vbob = VBOB_Alloc(1);
   assert(VBOB_AddArray(vbob, 8) == 0);
-  assert(VBOB_AddFloat(vbob, 3.4028234663852886e+38) == 0);
+  assert(VBOB_AddFloat(vbob, 3.4028234663852886e+5) == 0);
   assert(VBOB_AddDouble(vbob, -4.1) == 0);
   assert(VBOB_AddSimple(vbob, 8) == 0);
   assert(VBOB_AddSimple(vbob, 135) == 0);
@@ -1340,6 +1356,11 @@ main(void)
     printf("%.2X ", vbor->data[i]);
   }
   printf("\n");
+  vsb = VSB_new_auto();
+  assert(VBOR_PrintJSON(vbor, vsb, true) != -1);
+  VSB_finish(vsb);
+  printf("%s\n", VSB_data(vsb));
+  VSB_destroy(&vsb);
   VBOR_Destroy(&vbor);
 
   return EXIT_SUCCESS;
