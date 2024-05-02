@@ -1401,5 +1401,28 @@ main(void)
   VSB_destroy(&vsb);
   VBOR_Destroy(&vbor);
 
+  vbob = VBOB_Alloc(1);
+  assert(VBOB_AddTag(vbob, 55799) == 0); // Magic number for CBOR
+  assert(VBOB_AddArray(vbob, 3) == 0);
+  assert(VBOB_AddTag(vbob, 2) == 0);
+  assert(VBOB_AddString(vbob, "hello", 5) == 0);
+  assert(VBOB_AddTag(vbob, 42) == 0);
+  assert(VBOB_AddString(vbob, "world", 5) == 0);
+  assert(VBOB_AddTag(vbob, 6500) == 0);
+  assert(VBOB_AddString(vbob, "foo", 3) == 0);
+  assert(VBOB_Finish(vbob, &vbor) == 0);
+  VBOB_Destroy(&vbob);
+  for (size_t i = 0; i < vbor->len; i++)
+  {
+    printf("%.2X ", vbor->data[i]);
+  }
+  printf("\n");
+  vsb = VSB_new_auto();
+  assert(VBOR_PrintJSON(vbor, vsb, true) != -1);
+  VSB_finish(vsb);
+  printf("%s\n", VSB_data(vsb));
+  VSB_destroy(&vsb);
+  VBOR_Destroy(&vbor);
+
   return EXIT_SUCCESS;
 }
