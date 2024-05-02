@@ -506,6 +506,22 @@ VBOR_GetMapSize(const struct vbor *vbor, size_t *len)
 }
 
 int
+VBOR_GetTag(const struct vbor *vbor, uint64_t *res)
+{
+  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(res);
+  enum vbor_major_type type = VBOR_UNKNOWN;
+  enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+  size_t len = -1;
+  if (!VBOR_GetHeader(vbor, &type, &arg, &len))
+    return -1;
+  if (type != VBOR_TAG)
+    return -1;
+  *res = len;
+  return 0;
+}
+
+int
 VBOR_GetSimple(const struct vbor *vbor, uint8_t *res)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);

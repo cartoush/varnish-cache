@@ -82,6 +82,7 @@ int VBOR_GetString(const struct vbor *vbor, const char **res, size_t *len);
 int VBOR_GetByteString(const struct vbor *vbor, const uint8_t **res, size_t *len);
 int VBOR_GetArraySize(const struct vbor *vbor, size_t *len);
 int VBOR_GetMapSize(const struct vbor *vbor, size_t *len);
+int VBOR_GetTag(const struct vbor *vbor, uint64_t *res);
 int VBOR_GetSimple(const struct vbor *vbor, uint8_t *res);
 int VBOR_GetBool(const struct vbor *vbor, bool *res);
 int VBOR_GetFloat(const struct vbor *vbor, float *res);
