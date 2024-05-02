@@ -116,10 +116,11 @@ int VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
 int VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len);
 int VBOB_AddArray(struct vbob *vbob, size_t num_items);
 int VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
+int VBOB_AddTag(struct vbob *vbob, uint64_t value);
 int VBOB_AddSimple(struct vbob *vbob, uint8_t value);
 int VBOB_AddBool(struct vbob *vbob, bool value);
 int VBOB_AddNull(struct vbob *vbob);
-int VBOB_Undefined(struct vbob *vbob);
+int VBOB_AddUndefined(struct vbob *vbob);
 int VBOB_AddFloat(struct vbob *vbob, float value);
 int VBOB_AddDouble(struct vbob *vbob, double value);
 

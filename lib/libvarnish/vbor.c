@@ -122,7 +122,7 @@ vbor_decode_type(uint8_t data)
         type = VBOR_FLOAT;
         break;
       case (VBOR_FLOAT_SIMPLE << 5) + 25:
-        type = VBOR_FLOAT;
+        type = VBOR_ERROR; // Half-float not supported
         break;
       case (VBOR_FLOAT_SIMPLE << 5) + 23:
         type = VBOR_UNDEFINED;
@@ -762,6 +762,18 @@ VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
   vbob->err = VBOB_Update_cursor(vbob, VBOR_MAP, num_pairs);
   if (!vbob->err)
     vbob->err = VBOB_AddHeader(vbob, VBOR_MAP, num_pairs);
+  return vbob->err;
+}
+
+int
+VBOB_AddTag(struct vbob *vbob, uint64_t value)
+{
+  CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  if (vbob->err)
+    return vbob->err;
+  vbob->err = VBOB_Update_cursor(vbob, VBOR_TAG, 0);
+  if (!vbob->err)
+    vbob->err = VBOB_AddHeader(vbob, VBOR_TAG, value);
   return vbob->err;
 }
 
