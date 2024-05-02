@@ -966,10 +966,6 @@ VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
         real_max_depth = depth;
       json++;
       break;
-    case '}':
-      depth--;
-      json++;
-      break;
     case '[':;
       count = json_count_elements(json);
       if (count == (size_t)-1)
@@ -988,6 +984,7 @@ VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
         real_max_depth = depth;
       json++;
       break;
+    case '}':
     case ']':
       depth--;
       json++;
@@ -1010,19 +1007,18 @@ VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
     case '6':
     case '7':
     case '8':
-    case '9':
+    case '9':;
+      char *endptr = NULL;
       if (is_nb_float(json))
       {
-        xxxassert("TODO handle float");
-        while (isdigit(*json))
-          json++;
-        json++;
-        while (isdigit(*json))
-          json++;
+        double dval = strtod(json, &endptr);
+        json = endptr;
+        VBOB_AddDouble(vbob, dval * sign);
       }
       else
       {
-        uint64_t val = strtoul(json, NULL, 10);
+        uint64_t val = strtoul(json, &endptr, 10);
+        json = endptr;
         if (sign == -1)
         {
           VBOB_AddNegint(vbob, val);
@@ -1032,17 +1028,38 @@ VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
           VBOB_AddUInt(vbob, val);
         }
       }
-      while (isdigit(*json))
-      {
-        json++;
-      }
       sign = 1;
       break;
     case '"':
       json++;
       const char *end = get_str_end(json);
+      if (end == NULL)
+      {
+        VBOB_Destroy(&vbob);
+        return -1;
+      }
       VBOB_AddString(vbob, json, end - json);
       json += (end - json) + 1;
+      break;
+    case 't':
+    case 'f':
+    case 'n':
+      if (!memcmp(json, "true", 4)) {
+        VBOB_AddBool(vbob, true);
+        json += 4;
+      }
+      else if (!memcmp(json, "false", 5)) {
+        VBOB_AddBool(vbob, false);
+        json += 5;
+      }
+      else if (!memcmp(json, "null", 4)) {
+        VBOB_AddNull(vbob);
+        json += 4;
+      }
+      else {
+        VBOB_Destroy(&vbob);
+        return -1;
+      }
       break;
     default:
       VBOB_Destroy(&vbob);
