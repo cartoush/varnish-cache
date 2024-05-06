@@ -227,7 +227,7 @@ VBOR_InitSub(const uint8_t *data, size_t len, unsigned super_depth, struct vbor 
 }
 
 int
-VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
+VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   CHECK_OBJ_NOTNULL(json, VSB_MAGIC);
@@ -318,7 +318,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, bool pretty)
       VSB_printf(json, "%f", dval);
       break;
     case VBOR_BOOL:;
-      bool bval;
+      unsigned bval;
       if (VBOR_GetBool(next, &bval))
         return -1;
       VSB_printf(json, "%s", bval ? "true" : "false");
@@ -387,7 +387,7 @@ VBOR_Destroy(struct vbor **vbor)
   FREE_OBJ(*vbor);
 }
 
-static bool
+static unsigned
 VBOR_GetTypeArg(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_argument *arg)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
@@ -395,14 +395,14 @@ VBOR_GetTypeArg(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_a
   AN(arg);
   *type = vbor_decode_type(vbor->data[0]);
   if (*type == VBOR_UNKNOWN)
-    return false;
+    return 0;
   *arg = vbor_decode_arg(vbor->data[0]);
   if (*arg == VBOR_ARG_UNKNOWN)
-    return false;
-  return true;
+    return 0;
+  return 1;
 }
 
-static bool
+static unsigned
 VBOR_GetHeader(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_argument *arg, size_t *len)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
@@ -410,11 +410,11 @@ VBOR_GetHeader(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_ar
   AN(arg);
   AN(len);
   if (!VBOR_GetTypeArg(vbor, type, arg))
-    return false;
+    return 0;
   *len = vbor_decode_value_length(*type, *arg, vbor->data, vbor->len);
   if (*len == (size_t)-1)
-    return false;
-  return true;
+    return 0;
+  return 1;
 }
 
 int
@@ -583,7 +583,7 @@ VBOR_GetDouble(const struct vbor *vbor, double *res)
 }
 
 int
-VBOR_GetBool(const struct vbor *vbor, bool *res)
+VBOR_GetBool(const struct vbor *vbor, unsigned *res)
 {
   CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
   AN(res);
@@ -829,7 +829,7 @@ VBOB_AddSimple(struct vbob *vbob, uint8_t value)
 }
 
 int
-VBOB_AddBool(struct vbob *vbob, bool value)
+VBOB_AddBool(struct vbob *vbob, unsigned value)
 {
   return VBOB_AddSimple(vbob, value ? 21 : 20);
 }
@@ -890,7 +890,7 @@ VBOB_Finish(struct vbob *vbob, struct vbor **vbor)
   return 0;
 }
 
-static bool
+static unsigned
 is_nb_float(const char *str)
 {
   while (isdigit(*str))
@@ -901,15 +901,15 @@ is_nb_float(const char *str)
 static const char *
 get_str_end(const char *str)
 {
-  bool escaped = false;
+  unsigned escaped = 0;
   while (*str != '\0')
   {
     if (!escaped && *str == '"')
       break;
     if (*str == '\\' && !escaped)
-      escaped = true;
+      escaped = 1;
     else
-      escaped = false;
+      escaped = 0;
     str++;
   }
   return *str == '"' ? str : NULL;
@@ -938,13 +938,13 @@ json_count_elements(const char *json)
   json++;
   while (*json != '\0' && *json != closing)
   {
-    bool sub_opening_found = false;
+    unsigned sub_opening_found = 0;
     char sub_closing = 0;
     for (int i = 0; i < 4; i++)
     {
       if (*json == openings[i])
       {
-        sub_opening_found = true;
+        sub_opening_found = 1;
         sub_closing = closings[i];
         break;
       }
@@ -1083,11 +1083,11 @@ VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
     case 'f':
     case 'n':
       if (!memcmp(json, "true", 4)) {
-        VBOB_AddBool(vbob, true);
+        VBOB_AddBool(vbob, 1);
         json += 4;
       }
       else if (!memcmp(json, "false", 5)) {
-        VBOB_AddBool(vbob, false);
+        VBOB_AddBool(vbob, 0);
         json += 5;
       }
       else if (!memcmp(json, "null", 4)) {
@@ -1240,7 +1240,7 @@ main(void)
   VBOC_Destroy(&vboc);
 
   struct vsb *vsb = VSB_new_auto();
-  VBOR_PrintJSON(vbor, vsb, true);
+  VBOR_PrintJSON(vbor, vsb, 1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
@@ -1269,7 +1269,7 @@ main(void)
   printf("\n");
 
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, false) != -1);
+  assert(VBOR_PrintJSON(vbor, vsb, 0) != -1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
@@ -1370,7 +1370,7 @@ main(void)
   VBOB_Destroy(&vbob);
 
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, true) != -1);
+  assert(VBOR_PrintJSON(vbor, vsb, 1) != -1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
@@ -1383,8 +1383,8 @@ main(void)
   assert(VBOB_AddDouble(vbob, -4.1) == 0);
   assert(VBOB_AddSimple(vbob, 8) == 0);
   assert(VBOB_AddSimple(vbob, 135) == 0);
-  assert(VBOB_AddBool(vbob, true) == 0);
-  assert(VBOB_AddBool(vbob, false) == 0);
+  assert(VBOB_AddBool(vbob, 1) == 0);
+  assert(VBOB_AddBool(vbob, 0) == 0);
   assert(VBOB_AddNull(vbob) == 0);
   assert(VBOB_AddUndefined(vbob) == 0);
   assert(VBOB_Finish(vbob, &vbor) == 0);
@@ -1395,7 +1395,7 @@ main(void)
   }
   printf("\n");
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, true) != -1);
+  assert(VBOR_PrintJSON(vbor, vsb, 1) != -1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
@@ -1418,7 +1418,7 @@ main(void)
   }
   printf("\n");
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, true) != -1);
+  assert(VBOR_PrintJSON(vbor, vsb, 1) != -1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
