@@ -236,13 +236,17 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
   size_t idxs[vbor->max_depth];
   enum vbor_major_type types[vbor->max_depth];
   size_t depth = -1;
-  size_t initial_len = VSB_len(json);
-
-  struct vbor *next;
+  struct vbor next;
   enum vbor_major_type type;
+
   while ((type = VBOC_Next(vboc, &next)) < VBOR_END) {
     if (type == VBOR_TAG) {
       continue;
+    }
+    if (depth != (size_t)-1 && types[depth] == VBOR_MAP && idxs[depth] % 2 == 0 && type != VBOR_TEXT_STRING && type != VBOR_BYTE_STRING)
+    {
+      VBOC_Destroy(&vboc);
+      return -1;
     }
     if (pretty && depth != (size_t)-1 && !(types[depth] == VBOR_MAP && idxs[depth] % 2 == 1))
     {
@@ -253,20 +257,20 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
     {
     case VBOR_UINT:;
       uint64_t uval = 0;
-      if (VBOR_GetUInt(next, &uval))
+      if (VBOR_GetUInt(&next, &uval))
         return -1;
       VSB_printf(json, "%lu", uval);
       break;
     case VBOR_NEGINT:;
       uint64_t nval = 0;
-      if (VBOR_GetNegint(next, &nval))
+      if (VBOR_GetNegint(&next, &nval))
         return -1;
       VSB_printf(json, "-%lu", nval);
       break;
     case VBOR_TEXT_STRING:;
       size_t tdata_len = 0;
       const char *tdata = NULL;
-      if (VBOR_GetString(next, (const char**)&tdata, &tdata_len))
+      if (VBOR_GetString(&next, (const char**)&tdata, &tdata_len))
         return -1;
       VSB_putc(json, '"');
       VSB_bcat(json, tdata, tdata_len);
@@ -275,7 +279,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
     case VBOR_BYTE_STRING:;
       size_t bdata_len = 0;
       const uint8_t *bdata = NULL;
-      if (VBOR_GetByteString(next, &bdata, &bdata_len))
+      if (VBOR_GetByteString(&next, &bdata, &bdata_len))
         return -1;
       VSB_putc(json, '"');
       VENC_Encode_Base64(json, bdata, bdata_len);
@@ -285,7 +289,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
       size_t num_items = 0;
       VSB_printf(json, "[");
       depth++;
-      if (VBOR_GetArraySize(next, &num_items))
+      if (VBOR_GetArraySize(&next, &num_items))
         return -1;
       idxs[depth] = num_items;
       types[depth] = VBOR_ARRAY;
@@ -294,32 +298,32 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
       size_t num_pairs = 0;
       VSB_printf(json, "{");
       depth++;
-      if (VBOR_GetMapSize(next, &num_pairs))
+      if (VBOR_GetMapSize(&next, &num_pairs))
         return -1;
       idxs[depth] = num_pairs * 2;
       types[depth] = VBOR_MAP;
       break;
     case VBOR_SIMPLE:;
       uint8_t sval = 0;
-      if (VBOR_GetSimple(next, &sval))
+      if (VBOR_GetSimple(&next, &sval))
         return -1;
       VSB_printf(json, "%u", sval);
       break;
     case VBOR_FLOAT:;
       float fval = 0;
-      if (VBOR_GetFloat(next, &fval))
+      if (VBOR_GetFloat(&next, &fval))
         return -1;
       VSB_printf(json, "%f", fval);
       break;
     case VBOR_DOUBLE:;
       double dval = 0;
-      if (VBOR_GetDouble(next, &dval))
+      if (VBOR_GetDouble(&next, &dval))
         return -1;
       VSB_printf(json, "%f", dval);
       break;
     case VBOR_BOOL:;
       unsigned bval;
-      if (VBOR_GetBool(next, &bval))
+      if (VBOR_GetBool(&next, &bval))
         return -1;
       VSB_printf(json, "%s", bval ? "true" : "false");
       break;
@@ -375,7 +379,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
       VSB_putc(json, '\n');
   }
   VBOC_Destroy(&vboc);
-  return VSB_len(json) - initial_len;
+  return 0;
 }
 
 void
