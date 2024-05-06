@@ -623,8 +623,8 @@ void
 VBOB_Destroy(struct vbob **vbob)
 {
   AN(vbob);
-  VSB_destroy(&(*vbob)->vsb);
   CHECK_OBJ_NOTNULL(*vbob, VBOB_MAGIC);
+  VSB_destroy(&(*vbob)->vsb);
   FREE_OBJ(*vbob);
 }
 
@@ -886,7 +886,7 @@ int
 VBOB_Finish(struct vbob *vbob, struct vbor **vbor)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-  if (vbob->err || VSB_finish(vbob->vsb) == -1)
+  if (vbob->err || vbob->depth != (unsigned)-1 || VSB_finish(vbob->vsb) == -1)
     return -1;
   *vbor = VBOR_Alloc((const uint8_t*)VSB_data(vbob->vsb),
                   VSB_len(vbob->vsb), vbob->max_depth);
