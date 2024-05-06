@@ -1089,7 +1089,7 @@ VBOC_Alloc(struct vbor *vbor)
 }
 
 enum vbor_major_type
-VBOC_Next(struct vboc *vboc, struct vbor **vbor)
+VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
   enum vbor_major_type type;
@@ -1097,13 +1097,13 @@ VBOC_Next(struct vboc *vboc, struct vbor **vbor)
   size_t len;
   size_t skip = 1;
 
-  *vbor = NULL;
   if (vboc->current->magic == 0)
   {
     vboc->current->magic = VBOR_MAGIC;
     if (VBOR_InitSub(vboc->src->data, vboc->src->len, vboc->src->max_depth, &vboc->current[0]) == VBOR_ERROR)
       return VBOR_ERROR;
-    *vbor = vboc->current;
+    if (vbor)
+      memcpy(vbor, &vboc->current[0], sizeof(*vbor));
     return VBOR_What(vboc->current);
   }
   if (vboc->current->len <= 0)
@@ -1115,7 +1115,8 @@ VBOC_Next(struct vboc *vboc, struct vbor **vbor)
     skip += len;
   if (VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip, vboc->current->max_depth, vboc->current) == -1)
     return VBOR_ERROR;
-  *vbor = vboc->current;
+  if (vbor)
+    memcpy(vbor, &vboc->current[0], sizeof(*vbor));
   return VBOR_What(vboc->current);
 }
 
