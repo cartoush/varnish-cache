@@ -969,14 +969,12 @@ json_count_elements(const char *json)
 }
 
 int
-VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
+VBOB_ParseJSON(struct vbob *vbob, const char *json)
 {
   AN(json);
-  AN(vbor);
-  struct vbob *vbob = VBOB_Alloc(max_depth);
+  AN(vbob);
   int sign = 1;
-  unsigned depth = 0;
-  unsigned real_max_depth = 0;
+
   while (*json != '\0')
   {
     if (*json == ' ' || *json == '\t' || *json == '\n' || *json == ',' || *json == ':')
@@ -989,52 +987,26 @@ VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
     case '{':;
       size_t count = json_count_elements(json);
       if (count == (size_t)-1)
-      {
-        VBOB_Destroy(&vbob);
         return -1;
-      }
       VBOB_AddMap(vbob, count);
-      depth++;
-      if (depth > vbob->max_depth)
-      {
-        VBOB_Destroy(&vbob);
-        return -1;
-      }
-      if (depth > real_max_depth)
-        real_max_depth = depth;
       json++;
       break;
     case '[':;
       count = json_count_elements(json);
       if (count == (size_t)-1)
-      {
-        VBOB_Destroy(&vbob);
         return -1;
-      }
       VBOB_AddArray(vbob, count);
-      depth++;
-      if (depth > vbob->max_depth)
-      {
-        VBOB_Destroy(&vbob);
-        return -1;
-      }
-      if (depth > real_max_depth)
-        real_max_depth = depth;
       json++;
       break;
     case '}':
     case ']':
-      depth--;
       json++;
       break;
     case '-':
       sign = -1;
       json++;
       if (!isdigit(*json))
-      {
-        VBOB_Destroy(&vbob);
         return -1;
-      }
       break;
     case '0':
     case '1':
@@ -1072,10 +1044,7 @@ VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
       json++;
       const char *end = get_str_end(json);
       if (end == NULL)
-      {
-        VBOB_Destroy(&vbob);
         return -1;
-      }
       VBOB_AddString(vbob, json, end - json);
       json += (end - json) + 1;
       break;
@@ -1094,20 +1063,14 @@ VBOB_ParseJSON(const char *json, struct vbor **vbor, unsigned max_depth)
         VBOB_AddNull(vbob);
         json += 4;
       }
-      else {
-        VBOB_Destroy(&vbob);
+      else
         return -1;
-      }
       break;
     default:
-      VBOB_Destroy(&vbob);
       return -1;
     }
   }
-  vbob->max_depth = real_max_depth;
-  int ret = VBOB_Finish(vbob, vbor);
-  VBOB_Destroy(&vbob);
-  return ret;
+  return vbob->err;
 }
 
 struct vboc *
