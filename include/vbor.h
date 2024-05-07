@@ -75,7 +75,7 @@ struct vbor	*VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth);
 struct vbor	*VBOR_Clone(const struct vbor *vbor);
 void		VBOR_Destroy(struct vbor **vbor);
 
-int		VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth, struct vbor *vbor);
+int		VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth);
 void		VBOR_Fini(struct vbor *vbor);
 
 int		VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty);
@@ -137,9 +137,9 @@ struct vboc
 	struct vbor	current[1];
 };
 
-struct vboc *VBOC_Alloc(struct vbor *vbor);
-enum vbor_major_type VBOC_Next(struct vboc *vboc, struct vbor *vbor);
+int			VBOC_Init(struct vboc *vboc, struct vbor *vbor);
+void 			VBOC_Fini(struct vboc *vboc);
 
-void VBOC_Destroy(struct vboc **vboc);
+enum vbor_major_type	VBOC_Next(struct vboc *vboc, struct vbor *vbor);
 
 #endif

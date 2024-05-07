@@ -198,7 +198,7 @@ VBOR_Clone(const struct vbor *vbor)
 	return VBOR_Alloc(vbor->data, vbor->len, vbor->max_depth);
 }
 
-int VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth, struct vbor *vbor)
+int VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth)
 {
 	AN(vbor);
 	AN(data);
@@ -216,22 +216,20 @@ int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	CHECK_OBJ_NOTNULL(json, VSB_MAGIC);
-	struct vboc *vboc = VBOC_Alloc(vbor);
-	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
+	struct vboc vboc;
 	size_t idxs[vbor->max_depth];
 	enum vbor_major_type types[vbor->max_depth];
 	size_t depth = -1;
 	struct vbor next;
 	enum vbor_major_type type;
 
-	while ((type = VBOC_Next(vboc, &next)) < VBOR_END) {
+	VBOC_Init(&vboc, vbor);
+	while ((type = VBOC_Next(&vboc, &next)) < VBOR_END) {
 		if (type == VBOR_TAG) {
 			continue;
 		}
-		if (depth != (size_t)-1 && types[depth] == VBOR_MAP && idxs[depth] % 2 == 0 && type != VBOR_TEXT_STRING && type != VBOR_BYTE_STRING) {
-			VBOC_Destroy(&vboc);
+		if (depth != (size_t)-1 && types[depth] == VBOR_MAP && idxs[depth] % 2 == 0 && type != VBOR_TEXT_STRING && type != VBOR_BYTE_STRING)
 			return -1;
-		}
 		if (pretty && depth != (size_t)-1 && !(types[depth] == VBOR_MAP && idxs[depth] % 2 == 1)) {
 			for (size_t i = 0; i < depth + 1; i++)
 				VSB_putc(json, '\t');
@@ -337,7 +335,6 @@ int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
 					VSB_putc(json, '}');
 					break;
 				default:
-					VBOC_Destroy(&vboc);
 					return -1;
 				}
 				depth--;
@@ -356,7 +353,7 @@ int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
 		else if (pretty)
 			VSB_putc(json, '\n');
 	}
-	VBOC_Destroy(&vboc);
+	VBOC_Fini(&vboc);
 	return 0;
 }
 
@@ -847,7 +844,8 @@ int VBOB_Finish(struct vbob *vbob, struct vbor *vbor)
 	size_t data_len = VSB_len(vbob->vsb);
 	uint8_t *data = malloc(data_len);
 	memcpy(data, VSB_data(vbob->vsb), data_len);
-	if (VBOR_Init(data, data_len, vbob->max_depth, vbor) == -1) {
+	if (VBOR_Init(vbor, data, data_len, vbob->max_depth) == -1)
+	{
 		return -1;
 	}
 	vbor->flags = VBOR_OWNS_DATA;
@@ -1026,15 +1024,22 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 	return vbob->err;
 }
 
-struct vboc *
-VBOC_Alloc(struct vbor *vbor)
+int
+VBOC_Init(struct vboc *vboc, struct vbor *vbor)
 {
-	struct vboc *vboc;
+	AN(vboc);
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	ALLOC_OBJ(vboc, VBOC_MAGIC);
+	vboc->magic = VBOC_MAGIC;
 	vboc->src = vbor;
 	vboc->current[0].magic = 0;
-	return vboc;
+	return 0;
+}
+
+void
+VBOC_Fini(struct vboc *vboc)
+{
+	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
+	memset(vboc, 0, sizeof(*vboc));
 }
 
 enum vbor_major_type
@@ -1048,7 +1053,7 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 	unsigned sub_depth;
 
 	if (vboc->current->magic == 0) {
-		if (VBOR_Init(vboc->src->data, vboc->src->len, vbor->max_depth, &vboc->current[0]) == VBOR_ERROR)
+		if (VBOR_Init(&vboc->current[0], vboc->src->data, vboc->src->len, vbor->max_depth) == VBOR_ERROR)
 			return VBOR_ERROR;
 		if (vbor)
 			memcpy(vbor, &vboc->current[0], sizeof(*vbor));
@@ -1065,17 +1070,11 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 	skip += vbor_length_encoded_size(len);
 	if (type == VBOR_TEXT_STRING || type == VBOR_BYTE_STRING)
 		skip += len;
-	if (VBOR_Init(vboc->current->data + skip, vboc->current->len - skip, sub_depth, vboc->current) == -1)
+	if (VBOR_Init(vboc->current, vboc->current->data + skip, vboc->current->len - skip, sub_depth) == -1)
 		return VBOR_ERROR;
 	if (vbor)
 		memcpy(vbor, &vboc->current[0], sizeof(*vbor));
 	return VBOR_What(vboc->current);
-}
-
-void VBOC_Destroy(struct vboc **vboc)
-{
-	CHECK_OBJ_NOTNULL(*vboc, VBOC_MAGIC);
-	FREE_OBJ(*vboc);
 }
 
 static char *json = "{\"a\": 5000000000, \"b\": [-3000, \"hello\", 256000, \"world\"], \"g\": \"goodbye\"}";
@@ -1117,12 +1116,13 @@ int main(void)
 	assert(VBOR_GetArraySize(&vbor, &num_items) == 0);
 	assert(num_items == 4);
 
-	struct vboc *vboc = VBOC_Alloc(&vbor);
+	struct vboc vboc;
+	assert(VBOC_Init(&vboc, &vbor) == 0);
 
 	struct vbor next;
-	assert(VBOC_Next(vboc, &next) == VBOR_ARRAY);
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
 
-	assert(VBOC_Next(vboc, &next) == VBOR_UINT);
+	assert(VBOC_Next(&vboc, &next) == VBOR_UINT);
 	size_t len = 0;
 
 	size_t uval = 0;
@@ -1130,32 +1130,30 @@ int main(void)
 	assert(uval == 5000000000);
 
 	size_t num_pairs = 0;
-	assert(VBOC_Next(vboc, &next) == VBOR_MAP);
+	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
 	assert(VBOR_GetMapSize(&next, &num_pairs) == 0);
 	assert(num_pairs == 3);
 
 	size_t nval = 0;
-	assert(VBOC_Next(vboc, &next) == VBOR_NEGINT);
+	assert(VBOC_Next(&vboc, &next) == VBOR_NEGINT);
 	assert(VBOR_GetNegint(&next, &nval) == 0);
 	assert(nval == 3000);
 
 	const char *tdata = NULL;
-	assert(VBOC_Next(vboc, &next) == VBOR_TEXT_STRING);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(VBOR_GetString(&next, &tdata, &len) == 0);
 	assert(len == 5);
 	assert(memcmp(tdata, "hello", 5) == 0);
 
-	assert(VBOC_Next(vboc, &next) == VBOR_UINT);
+	assert(VBOC_Next(&vboc, &next) == VBOR_UINT);
 	assert(VBOR_GetUInt(&next, &uval) == 0);
 	assert(uval == 256000);
 
 	const uint8_t *bdata = NULL;
-	assert(VBOC_Next(vboc, &next) == VBOR_BYTE_STRING);
+	assert(VBOC_Next(&vboc, &next) == VBOR_BYTE_STRING);
 	assert(VBOR_GetByteString(&next, &bdata, &len) == 0);
 	assert(memcmp(bdata, "world", 5) == 0);
 	assert(len == 5);
-
-	VBOC_Destroy(&vboc);
 
 	struct vsb *vsb = VSB_new_auto();
 	VBOR_PrintJSON(&vbor, vsb, 1);
