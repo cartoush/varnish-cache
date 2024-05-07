@@ -1333,6 +1333,27 @@ int main(void)
 	VSB_finish(vsb);
 	printf("%s\n", VSB_data(vsb));
 	VSB_destroy(&vsb);
+
+	enum vbor_major_type types[] = {
+		VBOR_ARRAY,
+		VBOR_FLOAT,
+		VBOR_DOUBLE,
+		VBOR_SIMPLE,
+		VBOR_SIMPLE,
+		VBOR_BOOL,
+		VBOR_BOOL,
+		VBOR_NULL,
+		VBOR_UNDEFINED,
+	};
+
+	VBOC_Init(&vboc, &vbor);
+	int i = 0;
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(VBOR_What(&next) == types[i]);
+		i++;
+	}
+	printf("\n");
+
 	VBOR_Fini(&vbor);
 
 	vbob = VBOB_Alloc(1);
