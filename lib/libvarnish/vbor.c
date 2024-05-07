@@ -98,7 +98,9 @@ vbor_encoded_arg(size_t size)
 static uint8_t
 vbor_encode_type(enum vbor_major_type type)
 {
-  return type << 5;
+	if (type > VBOR_FLOAT_SIMPLE && type < VBOR_END)
+		type = VBOR_FLOAT_SIMPLE;
+	return type << 5;
 }
 
 static enum vbor_major_type
@@ -106,8 +108,6 @@ vbor_decode_type(uint8_t data)
 {
   enum vbor_major_type type = data >> 5;
 
-  if (type > VBOR_FLOAT_SIMPLE)
-    type = VBOR_UNKNOWN;
   if (type == VBOR_FLOAT_SIMPLE)
   {
     if (data >= (VBOR_FLOAT_SIMPLE << 5) + 28)
@@ -192,6 +192,7 @@ VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth)
   memcpy((void*)vbor->data, data, len);
   vbor->len = len;
   vbor->max_depth = max_depth;
+  vbor->flags = VBOR_ALLOCATED | VBOR_OWNS_DATA;
   return vbor;
 }
 
@@ -202,27 +203,18 @@ VBOR_Clone(const struct vbor *vbor)
   return VBOR_Alloc(vbor->data, vbor->len, vbor->max_depth);
 }
 
-static int
-VBOR_InitSub(const uint8_t *data, size_t len, unsigned super_depth, struct vbor *vbor)
+int
+VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth, struct vbor *vbor)
 {
-  CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+  AN(vbor);
   AN(data);
   if (len == 0)
     return -1;
+  vbor->magic = VBOR_MAGIC;
   vbor->data = data;
   vbor->len = len;
-  switch (VBOR_What(vbor)) {
-  case VBOR_ERROR:
-  case VBOR_UNKNOWN:
-    return -1;
-  case VBOR_ARRAY:
-  case VBOR_MAP:
-    vbor->max_depth = super_depth - 1;
-    break;
-  default:
-    vbor->max_depth = super_depth;
-    break;
-  }
+  vbor->max_depth = max_depth;
+  vbor->flags = 0;
   return 0;
 }
 
@@ -387,8 +379,25 @@ VBOR_Destroy(struct vbor **vbor)
 {
   CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
   AN((*vbor)->data);
+  assert((*vbor)->flags & (VBOR_ALLOCATED | VBOR_OWNS_DATA));
   free((void*)(*vbor)->data);
+  (*vbor)->data = NULL;
+  memset(*vbor, 0, sizeof(**vbor));
   FREE_OBJ(*vbor);
+}
+
+void
+VBOR_Fini(struct vbor *vbor)
+{
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	AN(vbor->data);
+	assert(!(vbor->flags & VBOR_ALLOCATED));
+	if (vbor->flags & VBOR_OWNS_DATA)
+	{
+		free((void*)vbor->data);
+		vbor->data = NULL;
+	}
+	memset(vbor, 0, sizeof(*vbor));
 }
 
 static unsigned
@@ -883,14 +892,19 @@ VBOB_AddDouble(struct vbob *vbob, double value)
 }
 
 int
-VBOB_Finish(struct vbob *vbob, struct vbor **vbor)
+VBOB_Finish(struct vbob *vbob, struct vbor *vbor)
 {
   CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+  AN(vbor);
   if (vbob->err || vbob->depth != (unsigned)-1 || VSB_finish(vbob->vsb) == -1)
     return -1;
-  *vbor = VBOR_Alloc((const uint8_t*)VSB_data(vbob->vsb),
-                  VSB_len(vbob->vsb), vbob->max_depth);
-  CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
+  size_t data_len = VSB_len(vbob->vsb);
+  uint8_t *data = malloc(data_len);
+  memcpy(data, VSB_data(vbob->vsb), data_len);
+  if (VBOR_Init(data, data_len, vbob->max_depth, vbor) == -1) {
+    return -1;
+  }
+  vbor->flags = VBOR_OWNS_DATA;
   return 0;
 }
 
@@ -1096,11 +1110,11 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
   enum vbor_argument arg;
   size_t len;
   size_t skip = 1;
+  unsigned sub_depth;
 
   if (vboc->current->magic == 0)
   {
-    vboc->current->magic = VBOR_MAGIC;
-    if (VBOR_InitSub(vboc->src->data, vboc->src->len, vboc->src->max_depth, &vboc->current[0]) == VBOR_ERROR)
+    if (VBOR_Init(vboc->src->data, vboc->src->len, vbor->max_depth, &vboc->current[0]) == VBOR_ERROR)
       return VBOR_ERROR;
     if (vbor)
       memcpy(vbor, &vboc->current[0], sizeof(*vbor));
@@ -1108,12 +1122,16 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
   }
   if (vboc->current->len <= 0)
     return VBOR_END;
+  type = VBOR_What(vboc->current);
+  sub_depth = vboc->current->max_depth;
+  if (type == VBOR_MAP || type == VBOR_ARRAY)
+    sub_depth--;
   if (!VBOR_GetHeader(vboc->current, &type, &arg, &len))
     return VBOR_ERROR;
   skip += vbor_length_encoded_size(len);
   if (type == VBOR_TEXT_STRING || type == VBOR_BYTE_STRING)
     skip += len;
-  if (VBOR_InitSub(vboc->current->data + skip, vboc->current->len - skip, vboc->current->max_depth, vboc->current) == -1)
+  if (VBOR_Init(vboc->current->data + skip, vboc->current->len - skip, sub_depth, vboc->current) == -1)
     return VBOR_ERROR;
   if (vbor)
     memcpy(vbor, &vboc->current[0], sizeof(*vbor));
@@ -1153,21 +1171,21 @@ main(void)
   VBOB_AddUInt(vbob, 3);
   VBOB_AddString(vbob, "goodbye", 7);
   VBOB_AddString(vbob, "lenin", 5);
-  struct vbor *vbor = NULL;
+  struct vbor vbor;
   assert(VBOB_Finish(vbob, &vbor) == 0);
   
   VBOB_Destroy(&vbob);
-  for (size_t i = 0; i < vbor->len; i++)
+  for (size_t i = 0; i < vbor.len; i++)
   {
-    printf("%.2X ", vbor->data[i]);
+    printf("%.2X ", vbor.data[i]);
   }
   printf("\n");
 
   size_t num_items = 0;
-  assert(VBOR_GetArraySize(vbor, &num_items) == 0);
+  assert(VBOR_GetArraySize(&vbor, &num_items) == 0);
   assert(num_items == 4);
 
-  struct vboc *vboc = VBOC_Alloc(vbor);
+  struct vboc *vboc = VBOC_Alloc(&vbor);
   
   struct vbor next;
   assert(VBOC_Next(vboc, &next) == VBOR_ARRAY);
@@ -1208,12 +1226,12 @@ main(void)
   VBOC_Destroy(&vboc);
 
   struct vsb *vsb = VSB_new_auto();
-  VBOR_PrintJSON(vbor, vsb, 1);
+  VBOR_PrintJSON(&vbor, vsb, 1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
 
-  VBOR_Destroy(&vbor);
+  VBOR_Fini(&vbor);
 
   assert(json_count_elements(json) == 3);
   assert(json_count_elements(json + 23) == 4);
@@ -1225,32 +1243,32 @@ main(void)
   assert(VBOB_ParseJSON(vbob, json) != -1);
   assert(VBOB_Finish(vbob, &vbor) == 0);
   VBOB_Destroy(&vbob);
-  assert(vbor->max_depth == 2);
-  assert(VBOR_What(vbor) == VBOR_MAP);
-  for (size_t i = 0; i < vbor->len; i++)
+  assert(vbor.max_depth == 2);
+  assert(VBOR_What(&vbor) == VBOR_MAP);
+  for (size_t i = 0; i < vbor.len; i++)
   {
-    printf("%.2X ", vbor->data[i]);
+    printf("%.2X ", vbor.data[i]);
   }
   printf("\n");
-  VBOR_Destroy(&vbor);
+  VBOR_Fini(&vbor);
 
   vbob = VBOB_Alloc(10);
   assert(VBOB_ParseJSON(vbob, json_2) != -1);
   assert(VBOB_Finish(vbob, &vbor) == 0);
   VBOB_Destroy(&vbob);
-  for (size_t i = 0; i < vbor->len; i++)
+  for (size_t i = 0; i < vbor.len; i++)
   {
-    printf("%.2X ", vbor->data[i]);
+    printf("%.2X ", vbor.data[i]);
   }
   printf("\n");
 
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, 0) != -1);
+  assert(VBOR_PrintJSON(&vbor, vsb, 0) != -1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
 
-  VBOR_Destroy(&vbor);
+  VBOR_Fini(&vbor);
 
   vbob = VBOB_Alloc(10);
   assert(VBOB_AddUInt(vbob, 5000000000) == 0);
@@ -1328,10 +1346,10 @@ main(void)
   assert(VBOB_AddUInt(vbob, 3) == 0);
   assert(VBOB_Finish(vbob, &vbor) == 0);
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, 0) != 0);
+  assert(VBOR_PrintJSON(&vbor, vsb, 0) != 0);
   VSB_destroy(&vsb);
   VBOB_Destroy(&vbob);
-  VBOR_Destroy(&vbor);
+  VBOR_Fini(&vbor);
 
   vbob = VBOB_Alloc(3);
   assert(VBOB_AddMap(vbob, 3) == 0);
@@ -1359,12 +1377,12 @@ main(void)
   VBOB_Destroy(&vbob);
 
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, 1) != -1);
+  assert(VBOR_PrintJSON(&vbor, vsb, 1) != -1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
 
-  VBOR_Destroy(&vbor);
+  VBOR_Fini(&vbor);
 
   vbob = VBOB_Alloc(1);
   assert(VBOB_AddArray(vbob, 8) == 0);
@@ -1378,17 +1396,17 @@ main(void)
   assert(VBOB_AddUndefined(vbob) == 0);
   assert(VBOB_Finish(vbob, &vbor) == 0);
   VBOB_Destroy(&vbob);
-  for (size_t i = 0; i < vbor->len; i++)
+  for (size_t i = 0; i < vbor.len; i++)
   {
-    printf("%.2X ", vbor->data[i]);
+    printf("%.2X ", vbor.data[i]);
   }
   printf("\n");
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, 1) != -1);
+  assert(VBOR_PrintJSON(&vbor, vsb, 1) != -1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
-  VBOR_Destroy(&vbor);
+  VBOR_Fini(&vbor);
 
   vbob = VBOB_Alloc(1);
   assert(VBOB_AddTag(vbob, 55799) == 0); // Magic number for CBOR
@@ -1401,17 +1419,17 @@ main(void)
   assert(VBOB_AddString(vbob, "foo", 3) == 0);
   assert(VBOB_Finish(vbob, &vbor) == 0);
   VBOB_Destroy(&vbob);
-  for (size_t i = 0; i < vbor->len; i++)
+  for (size_t i = 0; i < vbor.len; i++)
   {
-    printf("%.2X ", vbor->data[i]);
+    printf("%.2X ", vbor.data[i]);
   }
   printf("\n");
   vsb = VSB_new_auto();
-  assert(VBOR_PrintJSON(vbor, vsb, 1) != -1);
+  assert(VBOR_PrintJSON(&vbor, vsb, 1) != -1);
   VSB_finish(vsb);
   printf("%s\n", VSB_data(vsb));
   VSB_destroy(&vsb);
-  VBOR_Destroy(&vbor);
+  VBOR_Fini(&vbor);
 
   vbob = VBOB_Alloc(2);
   assert(VBOB_AddMap(vbob, 2) == 0);

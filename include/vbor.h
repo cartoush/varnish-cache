@@ -66,12 +66,19 @@ struct vbor {
 	const uint8_t	*data;
 	size_t		len;
 	unsigned	max_depth;
+	int 		flags;
+#define VBOR_ALLOCATED	(1 << 0)
+#define VBOR_OWNS_DATA	(1 << 1)
 };
 
 struct vbor	*VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth);
 struct vbor	*VBOR_Clone(const struct vbor *vbor);
-int		VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty);
 void		VBOR_Destroy(struct vbor **vbor);
+
+int		VBOR_Init(const uint8_t *data, size_t len, unsigned max_depth, struct vbor *vbor);
+void		VBOR_Fini(struct vbor *vbor);
+
+int		VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty);
 
 int	VBOR_GetUInt(const struct vbor *vbor, uint64_t *res);
 int	VBOR_GetNegint(const struct vbor *vbor, uint64_t *res);
@@ -119,19 +126,19 @@ int	VBOB_AddUndefined(struct vbob *vbob);
 int	VBOB_AddFloat(struct vbob *vbob, float value);
 int	VBOB_AddDouble(struct vbob *vbob, double value);
 
-int	VBOB_Finish(struct vbob *vbob, struct vbor **vbor);
+int	VBOB_Finish(struct vbob *vbob, struct vbor *vbor);
 void	VBOB_Destroy(struct vbob **vbob);
 
 struct vboc
 {
-	unsigned		magic;
+	unsigned	magic;
 #define VBOC_MAGIC	0x863baac8
-	struct vbor		*src;
-	struct vbor		current[1];
+	struct vbor	*src;
+	struct vbor	current[1];
 };
 
 struct vboc *VBOC_Alloc(struct vbor *vbor);
-enum vbor_major_type VBOC_Next(struct vboc *vboc, struct vbor **vbor);
+enum vbor_major_type VBOC_Next(struct vboc *vboc, struct vbor *vbor);
 
 void VBOC_Destroy(struct vboc **vboc);
 
