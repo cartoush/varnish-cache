@@ -1077,8 +1077,7 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 	return VBOR_What(vboc->current);
 }
 
-static char *json = "{\"a\": 5000000000, \"b\": [-3000, \"hello\", 256000, \"world\"], \"g\": \"goodbye\"}";
-static char *json_2 = "[true, false, null, 340282.343750]";
+#ifdef VBOR_TEST
 
 int main(void)
 {
@@ -1163,6 +1162,7 @@ int main(void)
 
 	VBOR_Fini(&vbor);
 
+	const char *json = "{\"a\": 5000000000, \"b\": [-3000, \"hello\", 256000, \"world\"], \"g\": \"goodbye\"}";
 	assert(json_count_elements(json) == 3);
 	assert(json_count_elements(json + 23) == 4);
 
@@ -1181,6 +1181,7 @@ int main(void)
 	printf("\n");
 	VBOR_Fini(&vbor);
 
+	const char *json_2 = "[true, false, null, 340282.343750]";
 	vbob = VBOB_Alloc(10);
 	assert(VBOB_ParseJSON(vbob, json_2) != -1);
 	assert(VBOB_Finish(vbob, &vbor) == 0);
@@ -1389,3 +1390,5 @@ int main(void)
 
 	return EXIT_SUCCESS;
 }
+
+#endif
