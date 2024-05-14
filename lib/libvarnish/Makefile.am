@@ -19,6 +19,7 @@ libvarnish_la_SOURCES = \
 	vas.c \
 	vav.c \
 	vbt.c \
+	vbor.c \
 	vcli_proto.c \
 	vcli_serve.c \
 	vct.c \
