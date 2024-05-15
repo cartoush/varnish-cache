@@ -76,6 +76,7 @@ struct vbor	*VBOR_Clone(const struct vbor *vbor);
 void		VBOR_Destroy(struct vbor **vbor);
 
 int		VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth);
+int		VBOR_Copy(struct vbor *dst, const struct vbor *src);
 void		VBOR_Fini(struct vbor *vbor);
 
 int		VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty);
@@ -141,5 +142,6 @@ int			VBOC_Init(struct vboc *vboc, struct vbor *vbor);
 void 			VBOC_Fini(struct vboc *vboc);
 
 enum vbor_major_type	VBOC_Next(struct vboc *vboc, struct vbor *vbor);
+// Maybe add a peek_next() function
 
 #endif

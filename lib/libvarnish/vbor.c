@@ -198,7 +198,8 @@ VBOR_Clone(const struct vbor *vbor)
 	return VBOR_Alloc(vbor->data, vbor->len, vbor->max_depth);
 }
 
-int VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth)
+int
+VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth)
 {
 	AN(vbor);
 	AN(data);
@@ -212,7 +213,15 @@ int VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_d
 	return 0;
 }
 
-int VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
+int
+VBOR_Copy(struct vbor *dst, const struct vbor *src)
+{
+	CHECK_OBJ_NOTNULL(src, VBOR_MAGIC);
+	return VBOR_Init(dst, src->data, src->len, src->max_depth);
+}
+
+int
+VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	CHECK_OBJ_NOTNULL(json, VSB_MAGIC);
@@ -980,14 +989,7 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 			else {
 				uint64_t val = strtoul(json, &endptr, 10);
 				json = endptr;
-				if (sign == -1)
-				{
-					VBOB_AddNegint(vbob, val);
-				}
-				else
-				{
-					VBOB_AddUInt(vbob, val);
-				}
+				sign == -1 ? VBOB_AddNegint(vbob, val) : VBOB_AddUInt(vbob, val);
 			}
 			sign = 1;
 			break;
