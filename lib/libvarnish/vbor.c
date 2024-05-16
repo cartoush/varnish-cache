@@ -64,7 +64,7 @@ invert_bytes(uint8_t *val, uint8_t len)
 }
 
 static uint8_t
-vbor_length_encoded_size(size_t size)
+VBOR_LengthEncodedSize(size_t size)
 {
 	if (size > 0xFFFFFFFF)
 		return 8;
@@ -78,7 +78,7 @@ vbor_length_encoded_size(size_t size)
 }
 
 static uint8_t
-vbor_encoded_arg(size_t size)
+VBOR_EncodedArg(size_t size)
 {
 	enum vbor_argument arg = VBOR_ARG_5BITS;
 	if (size > 0xFFFFFFFF)
@@ -95,7 +95,7 @@ vbor_encoded_arg(size_t size)
 }
 
 static uint8_t
-vbor_encode_type(enum vbor_major_type type)
+VBOR_EncodeType(enum vbor_major_type type)
 {
 	if (type > VBOR_FLOAT_SIMPLE && type < VBOR_END)
 		type = VBOR_FLOAT_SIMPLE;
@@ -103,7 +103,7 @@ vbor_encode_type(enum vbor_major_type type)
 }
 
 static enum vbor_major_type
-vbor_decode_type(uint8_t data)
+VBOR_DecodeType(uint8_t data)
 {
 	enum vbor_major_type type = data >> 5;
 
@@ -142,7 +142,7 @@ vbor_decode_type(uint8_t data)
 }
 
 static enum vbor_argument
-vbor_decode_arg(uint8_t data)
+VBOR_DecodeArg(uint8_t data)
 {
 	enum vbor_argument arg = data & 0b00011111;
 
@@ -156,7 +156,7 @@ vbor_decode_arg(uint8_t data)
 }
 
 static size_t
-vbor_decode_value_length(enum vbor_major_type type, enum vbor_argument arg, const uint8_t *data, size_t length)
+VBOR_DecodeValueLength(enum vbor_major_type type, enum vbor_argument arg, const uint8_t *data, size_t length)
 {
 	size_t len = 0;
 	if (type == VBOR_UNKNOWN || arg == VBOR_ARG_UNKNOWN)
@@ -395,10 +395,10 @@ VBOR_GetTypeArg(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_a
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(type);
 	AN(arg);
-	*type = vbor_decode_type(vbor->data[0]);
+	*type = VBOR_DecodeType(vbor->data[0]);
 	if (*type == VBOR_UNKNOWN)
 		return 0;
-	*arg = vbor_decode_arg(vbor->data[0]);
+	*arg = VBOR_DecodeArg(vbor->data[0]);
 	if (*arg == VBOR_ARG_UNKNOWN)
 		return 0;
 	return 1;
@@ -413,13 +413,14 @@ VBOR_GetHeader(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_ar
 	AN(len);
 	if (!VBOR_GetTypeArg(vbor, type, arg))
 		return 0;
-	*len = vbor_decode_value_length(*type, *arg, vbor->data, vbor->len);
+	*len = VBOR_DecodeValueLength(*type, *arg, vbor->data, vbor->len);
 	if (*len == (size_t)-1)
 		return 0;
 	return 1;
 }
 
-int VBOR_GetUInt(const struct vbor *vbor, uint64_t *res)
+int
+VBOR_GetUInt(const struct vbor *vbor, uint64_t *res)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
@@ -434,7 +435,8 @@ int VBOR_GetUInt(const struct vbor *vbor, uint64_t *res)
 	return 0;
 }
 
-int VBOR_GetNegint(const struct vbor *vbor, uint64_t *res)
+int
+VBOR_GetNegint(const struct vbor *vbor, uint64_t *res)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
@@ -449,7 +451,8 @@ int VBOR_GetNegint(const struct vbor *vbor, uint64_t *res)
 	return 0;
 }
 
-int VBOR_GetString(const struct vbor *vbor, const char **res, size_t *len)
+int
+VBOR_GetString(const struct vbor *vbor, const char **res, size_t *len)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(len);
@@ -460,11 +463,12 @@ int VBOR_GetString(const struct vbor *vbor, const char **res, size_t *len)
 		return -1;
 	if (type != VBOR_TEXT_STRING)
 		return -1;
-	*res = (const char *)vbor->data + 1 + vbor_length_encoded_size(*len);
+	*res = (const char *)vbor->data + 1 + VBOR_LengthEncodedSize(*len);
 	return 0;
 }
 
-int VBOR_GetByteString(const struct vbor *vbor, const uint8_t **res, size_t *len)
+int
+VBOR_GetByteString(const struct vbor *vbor, const uint8_t **res, size_t *len)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(len);
@@ -475,11 +479,12 @@ int VBOR_GetByteString(const struct vbor *vbor, const uint8_t **res, size_t *len
 		return -1;
 	if (type != VBOR_BYTE_STRING)
 		return -1;
-	*res = vbor->data + 1 + vbor_length_encoded_size(*len);
+	*res = vbor->data + 1 + VBOR_LengthEncodedSize(*len);
 	return 0;
 }
 
-int VBOR_GetArraySize(const struct vbor *vbor, size_t *len)
+int
+VBOR_GetArraySize(const struct vbor *vbor, size_t *len)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(len);
@@ -492,7 +497,8 @@ int VBOR_GetArraySize(const struct vbor *vbor, size_t *len)
 	return 0;
 }
 
-int VBOR_GetMapSize(const struct vbor *vbor, size_t *len)
+int
+VBOR_GetMapSize(const struct vbor *vbor, size_t *len)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(len);
@@ -505,7 +511,8 @@ int VBOR_GetMapSize(const struct vbor *vbor, size_t *len)
 	return 0;
 }
 
-int VBOR_GetTag(const struct vbor *vbor, uint64_t *res)
+int
+VBOR_GetTag(const struct vbor *vbor, uint64_t *res)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
@@ -520,7 +527,8 @@ int VBOR_GetTag(const struct vbor *vbor, uint64_t *res)
 	return 0;
 }
 
-int VBOR_GetSimple(const struct vbor *vbor, uint8_t *res)
+int
+VBOR_GetSimple(const struct vbor *vbor, uint8_t *res)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
@@ -541,7 +549,8 @@ int VBOR_GetSimple(const struct vbor *vbor, uint8_t *res)
 	return 0;
 }
 
-int VBOR_GetFloat(const struct vbor *vbor, float *res)
+int
+VBOR_GetFloat(const struct vbor *vbor, float *res)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
@@ -558,7 +567,8 @@ int VBOR_GetFloat(const struct vbor *vbor, float *res)
 	return 0;
 }
 
-int VBOR_GetDouble(const struct vbor *vbor, double *res)
+int
+VBOR_GetDouble(const struct vbor *vbor, double *res)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
@@ -575,7 +585,8 @@ int VBOR_GetDouble(const struct vbor *vbor, double *res)
 	return 0;
 }
 
-int VBOR_GetBool(const struct vbor *vbor, unsigned *res)
+int
+VBOR_GetBool(const struct vbor *vbor, unsigned *res)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
@@ -591,7 +602,7 @@ VBOR_What(const struct vbor *vbor)
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(vbor->data);
 	AN(vbor->len);
-	return vbor_decode_type(vbor->data[0]);
+	return VBOR_DecodeType(vbor->data[0]);
 }
 
 struct vbob *
@@ -661,10 +672,10 @@ VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
 {
 	uint8_t hdr[9] = {0};
 	uint8_t written = 0;
-	hdr[0] = vbor_encode_type(type);
-	hdr[0] |= vbor_encoded_arg(len);
+	hdr[0] = VBOR_EncodeType(type);
+	hdr[0] |= VBOR_EncodedArg(len);
 	written += 1;
-	size_t size_len = vbor_length_encoded_size(len);
+	size_t size_len = VBOR_LengthEncodedSize(len);
 	if (size_len != 0) {
 		for (size_t i = 0; i < size_len; i++)
 			hdr[i + 1] = (len >> ((size_len - 1 - i) * 8)) & 0xFF;
@@ -1069,7 +1080,7 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 		sub_depth--;
 	if (!VBOR_GetHeader(vboc->current, &type, &arg, &len))
 		return VBOR_ERROR;
-	skip += vbor_length_encoded_size(len);
+	skip += VBOR_LengthEncodedSize(len);
 	if (type == VBOR_TEXT_STRING || type == VBOR_BYTE_STRING)
 		skip += len;
 	if (VBOR_Init(vboc->current, vboc->current->data + skip, vboc->current->len - skip, sub_depth) == -1)
