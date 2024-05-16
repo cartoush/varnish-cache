@@ -93,6 +93,8 @@ int	VBOR_GetBool(const struct vbor *vbor, unsigned *res);
 int	VBOR_GetFloat(const struct vbor *vbor, float *res);
 int	VBOR_GetDouble(const struct vbor *vbor, double *res);
 
+int	VBOR_GetByteSize(struct vbor *vbor, size_t *len);
+
 enum vbor_major_type	VBOR_What(const struct vbor *vbor);
 
 struct vbob_pos {
