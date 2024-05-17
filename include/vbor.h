@@ -31,12 +31,10 @@
 #ifndef __VBOR_H_
 #define __VBOR_H_
 
-#include "config.h"
-
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "vsb.h"
+struct vsb;
 
 enum vbor_major_type {
 	VBOR_UINT,

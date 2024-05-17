@@ -40,6 +40,7 @@
 #include "miniobj.h"
 #include "vas.h"
 #include "vbor.h"
+#include "vsb.h"
 #include "venc.h"
 
 enum vbor_argument
