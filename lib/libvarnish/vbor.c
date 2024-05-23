@@ -722,11 +722,11 @@ static int
 VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
 {
 	uint8_t hdr[9] = {0};
-	uint8_t written = 0;
+	uint8_t written = 1;
 	hdr[0] = VBOR_EncodeType(type);
 	hdr[0] |= VBOR_EncodedArg(len);
-	written += 1;
 	size_t size_len = VBOR_LengthEncodedSize(len);
+
 	if (size_len != 0) {
 		for (size_t i = 0; i < size_len; i++)
 			hdr[i + 1] = (len >> ((size_len - 1 - i) * 8)) & 0xFF;
@@ -950,49 +950,52 @@ get_str_end(const char *str)
 static size_t
 json_count_elements(const char *json)
 {
-	size_t count = 0;
-	char openings[] = {
-		'{',
-		'[',
-		'"',
-		'\'',
-	};
-	char closings[] = {
-		'}',
-		']',
-		'"',
-		'\'',
-	};
+	size_t count = 1;
+	char closing;
 
 	if (*json != '{' && *json != '[')
 		return -1;
-	char closing = *json == '[' ? ']' : '}';
+	closing = *json == '[' ? ']' : '}';
 	json++;
+	while (isspace(*json))
+		json++;
+	if (*json == closing)
+		return 0;
 	while (*json != '\0' && *json != closing) {
-		unsigned sub_opening_found = 0;
-		char sub_closing = 0;
-		for (int i = 0; i < 4; i++) {
-			if (*json == openings[i]) {
-				sub_opening_found = 1;
-				sub_closing = closings[i];
-				break;
-			}
-		}
-		if (sub_opening_found) {
+		if (*json == ',') {
+			count++;
 			json++;
-			while ((*json != sub_closing) ||
-			       ((sub_closing == '\'' || sub_closing == '"') &&
-				*json != sub_closing && *(json - 1) == '\\'))
+			continue;
+		}
+		if (*json == '[' || *json == '{') {
+			unsigned depth = 1;
+			char sub_opening = *json;
+			char sub_closing = sub_opening == '[' ? ']' : '}';
+			while (*json != '\0' && depth != 0)
+			{
 				json++;
-			if (*json == '\0')
+				if (*json == '"') {
+					json = get_str_end(json);
+					if (json == NULL)
+						return -1;
+					continue;
+				}
+				else if (*json == sub_opening)
+					depth++;
+				else if (*json == sub_closing)
+					depth--;
+			}
+			if (*json == '\0' || depth != 0)
 				return -1;
 		}
-		if (*json == ',' || (count == 0 && !isspace(*json)))
-			count++;
+		else if (*json == '"') {
+			json++;
+			json = get_str_end(json);
+			if (json == NULL)
+				return -1;
+		}
 		json++;
 	}
-	if (*json == '\0')
-		return -1;
 	return count;
 }
 
@@ -1002,23 +1005,28 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 	AN(vbob);
 	int sign = 1;
 
-	while (*json != '\0') {
-		if (*json == ' ' || *json == '\t' || *json == '\n' || *json == ',' || *json == ':') {
+	while (*json != '\0' && !vbob->err) {
+		if (isspace(*json) || *json == ',' || *json == ':' || *json == '}' || *json == ']')
+		{
 			json++;
 			continue;
 		}
 		switch (*json) {
 		case '{':;
 			size_t count = json_count_elements(json);
-			if (count == (size_t)-1)
-				return -1;
+			if (count == (size_t)-1) {
+				vbob->err = -1;
+				break;
+			}
 			VBOB_AddMap(vbob, count);
 			json++;
 			break;
-		case '[':;
+		case '[':
 			count = json_count_elements(json);
-			if (count == (size_t)-1)
-				return -1;
+			if (count == (size_t)-1) {
+				vbob->err = -1;
+				break;
+			}
 			VBOB_AddArray(vbob, count);
 			json++;
 			break;
@@ -1030,7 +1038,7 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 			sign = -1;
 			json++;
 			if (!isdigit(*json))
-				return -1;
+				vbob->err = -1;
 			break;
 		case '0':
 		case '1':
@@ -1058,31 +1066,33 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 		case '"':
 			json++;
 			const char *end = get_str_end(json);
-			if (end == NULL)
-				return -1;
+			if (end == NULL) {
+				vbob->err = -1;
+				break;
+			}
 			VBOB_AddString(vbob, json, end - json);
 			json += (end - json) + 1;
 			break;
 		case 't':
 		case 'f':
 		case 'n':
-			if (!memcmp(json, "true", 4)) {
+			if (!memcmp(json, "true", sizeof("true") - 1)) {
 				VBOB_AddBool(vbob, 1);
-				json += 4;
+				json += sizeof("true");
 			}
-			else if (!memcmp(json, "false", 5)) {
+			else if (!memcmp(json, "false", sizeof("false") - 1)) {
 				VBOB_AddBool(vbob, 0);
-				json += 5;
+				json += sizeof("false");
 			}
-			else if (!memcmp(json, "null", 4)) {
+			else if (!memcmp(json, "null", sizeof("null") - 1)) {
 				VBOB_AddNull(vbob);
-				json += 4;
+				json += sizeof("null");
 			}
 			else
-				return -1;
+				vbob->err = -1;
 			break;
 		default:
-			return -1;
+			vbob->err = -1;
 		}
 	}
 	return vbob->err;
