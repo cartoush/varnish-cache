@@ -40,10 +40,11 @@
 
 #include "libvcc.h"
 #include "vfil.h"
-#include "vjsn.h"
+#include "vbor.h"
 #include "vmod_abi.h"
 
 #include "vcc_vmod.h"
+#include "vsb.h"
 
 struct vmod_import {
 	unsigned			magic;
@@ -66,7 +67,7 @@ struct vmod_import {
 
 	struct symbol			*sym;
 	const struct token		*t_mod;
-	struct vjsn			*vj;
+	struct vbor			*vb;
 #define STANZA(UU, ll, ss)		int n_##ll;
 	STANZA_TBL
 #undef STANZA
@@ -75,7 +76,7 @@ struct vmod_import {
 static VTAILQ_HEAD(,vmod_import) imports = VTAILQ_HEAD_INITIALIZER(imports);
 
 typedef void vcc_do_stanza_f(struct vcc *tl, const struct vmod_import *vim,
-    const struct vjsn_val *vv);
+    const struct vbor *vb);
 
 static int
 vcc_Extract_JSON(struct vmod_import *vim, const char *filename)
@@ -134,106 +135,127 @@ vcc_Extract_JSON(struct vmod_import *vim, const char *filename)
 static const char *
 vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 {
-	const struct vjsn_val *vv, *vv2, *vv3;
-	const char *err;
+	struct vbob *vbob = NULL;
+	struct vboc vboc;
+	struct vbor next;
+	const char *val = NULL;
+	size_t val_len = 0;
 	char *p;
 
-	vim->vj = vjsn_parse(jsn, &err);
-	if (err != NULL)
-		return (err);
-	AN(vim->vj);
+	vbob = VBOB_Alloc(10);
+	AN(vbob);
+	VBOB_ParseJSON(vbob, jsn);
+	ALLOC_OBJ(vim->vb, VBOR_MAGIC);
+	if (VBOB_Finish(vbob, vim->vb) == -1)
+		return NULL;
+	vim->vb->flags = VBOR_ALLOCATED | VBOR_OWNS_DATA;
 
-	vv = vim->vj->value;
-	if (!vjsn_is_array(vv))
-		return ("Not array[0]");
+	VBOC_Init(&vboc, vim->vb);
+	if (VBOC_Next(&vboc, &next) != VBOR_ARRAY)
+		return "Not array[0]";
+	if (VBOC_Next(&vboc, &next) != VBOR_ARRAY)
+		return "Not array[1]";
+	if (VBOC_Next(&vboc, &next) != VBOR_TEXT_STRING)
+		return "Not string[2]";
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	if (val_len == sizeof("$VMOD") && strncmp(val, "$VMOD", val_len) != 0)
+		return "Not $VMOD[3]";
 
-	vv2 = VTAILQ_FIRST(&vv->children);
-	AN(vv2);
-	if (!vjsn_is_array(vv2))
-		return ("Not array[1]");
-	vv3 = VTAILQ_FIRST(&vv2->children);
-	AN(vv3);
-	if (!vjsn_is_string(vv3))
-		return ("Not string[2]");
-	if (strcmp(vv3->value, "$VMOD"))
-		return ("Not $VMOD[3]");
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	val = strndup(val, val_len);
+	AN(val);
+	vim->vmod_syntax = strtod(val, NULL);
+	free((void*)val);
+	assert(vim->vmod_syntax == 1.0);
 
-	vv3 = VTAILQ_NEXT(vv3, list);
-	AN(vv3);
-	assert(vjsn_is_string(vv3));
-	vim->vmod_syntax = strtod(vv3->value, NULL);
-	assert (vim->vmod_syntax == 1.0);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	vim->name = strndup(val, val_len);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	vim->func_name = strndup(val, val_len);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	vim->file_id = strndup(val, val_len);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	vim->abi = strndup(val, val_len);
 
-	vv3 = VTAILQ_NEXT(vv3, list);
-	AN(vv3);
-	assert(vjsn_is_string(vv3));
-	vim->name = vv3->value;
-
-	vv3 = VTAILQ_NEXT(vv3, list);
-	AN(vv3);
-	assert(vjsn_is_string(vv3));
-	vim->func_name = vv3->value;
-
-	vv3 = VTAILQ_NEXT(vv3, list);
-	AN(vv3);
-	assert(vjsn_is_string(vv3));
-	vim->file_id = vv3->value;
-
-	vv3 = VTAILQ_NEXT(vv3, list);
-	AN(vv3);
-	assert(vjsn_is_string(vv3));
-	vim->abi = vv3->value;
-
-	vv3 = VTAILQ_NEXT(vv3, list);
-	AN(vv3);
-	assert(vjsn_is_string(vv3));
-	vim->major = strtoul(vv3->value, &p, 10);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	val = strndup(val, val_len);
+	AN(val);
+	vim->major = strtoul(val, &p, 10);
 	assert(p == NULL || *p == '\0' || *p == 'U');
+	free((void*)val);
 
-	vv3 = VTAILQ_NEXT(vv3, list);
-	AN(vv3);
-	assert(vjsn_is_string(vv3));
-	vim->minor = strtoul(vv3->value, &p, 10);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	val = strndup(val, val_len);
+	AN(val);
+	vim->minor = strtoul(val, &p, 10);
 	assert(p == NULL || *p == '\0' || *p == 'U');
-
+	free((void*)val);
 
 	if (vim->major == 0 && vim->minor == 0 &&
-	    strcmp(vim->abi, VMOD_ABI_Version)) {
+		strcmp(vim->abi, VMOD_ABI_Version)) {
 		VSB_printf(tl->sb, "Incompatible VMOD %.*s\n", PF(vim->t_mod));
 		VSB_printf(tl->sb, "\tFile name: %s\n", vim->path);
 		VSB_printf(tl->sb, "\tABI mismatch, expected <%s>, got <%s>\n",
-			   VMOD_ABI_Version, vim->abi);
+			VMOD_ABI_Version, vim->abi);
 		return ("");
 	}
 	if (vim->major != 0 &&
-	    (vim->major != VRT_MAJOR_VERSION ||
-	    vim->minor > VRT_MINOR_VERSION)) {
+		(vim->major != VRT_MAJOR_VERSION ||
+		vim->minor > VRT_MINOR_VERSION)) {
 		VSB_printf(tl->sb, "Incompatible VMOD %.*s\n", PF(vim->t_mod));
 		VSB_printf(tl->sb, "\tFile name: %s\n", vim->path);
 		VSB_printf(tl->sb, "\tVMOD wants ABI version %u.%u\n",
-		    vim->major, vim->minor);
+			vim->major, vim->minor);
 		VSB_printf(tl->sb, "\tvarnishd provides ABI version %u.%u\n",
-		    VRT_MAJOR_VERSION, VRT_MINOR_VERSION);
+			VRT_MAJOR_VERSION, VRT_MINOR_VERSION);
 		return ("");
 	}
 
+	assert(!VBOC_Init(&vboc, vim->vb));
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	size_t top_size = 0;
+	assert(!VBOR_GetArraySize(&next, &top_size));
+	for (size_t i = 0; i < top_size; i++) {
+		size_t sub_size = 0;
+		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+		assert(!VBOR_GetArraySize(&next, &sub_size));
+		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		assert(val[0] == '$');
 
-	VTAILQ_FOREACH(vv2, &vv->children, list) {
-		assert (vjsn_is_array(vv2));
-		vv3 = VTAILQ_FIRST(&vv2->children);
-		assert(vjsn_is_string(vv3));
-		assert(vv3->value[0] == '$');
+		unsigned valid_stanza = 0;
 #define STANZA(UU, ll, ss) \
-    if (!strcmp(vv3->value, "$" #UU)) {vim->n_##ll++; continue;}
-		STANZA_TBL
+		if (!strncmp(val, "$" #UU, val_len)) {vim->n_##ll++; valid_stanza = 1;}
+			STANZA_TBL
 #undef STANZA
-		return ("Unknown metadata stanza.");
+		if (!valid_stanza)
+			return ("Unknown metadata stanza.");
+		for (size_t j = 1; j < sub_size; j++) {
+			size_t s = 0;
+			assert(VBOC_Next(&vboc, &next) < VBOR_END);
+			if (VBOR_What(&next) == VBOR_ARRAY) {
+				assert(!VBOR_GetArraySize(&next, &s));
+				sub_size += s;
+			}
+			else if (VBOR_What(&next) == VBOR_MAP) {
+				assert(!VBOR_GetMapSize(&next, &s));
+				sub_size += s * 2;
+			}
+		}
 	}
+
 	if (vim->n_cproto != 1)
 		return ("Bad cproto stanza(s)");
 	if (vim->n_vmod != 1)
 		return ("Bad vmod stanza(s)");
-	return (NULL);
+	return NULL;
 }
 
 /*
@@ -267,8 +289,8 @@ vcc_VmodLoad(struct vcc *tl, struct vmod_import *vim)
 			return (0);
 		}
 		VSB_printf(tl->sb,
-		    "Different version of VMOD %.*s already loaded\n",
-		    PF(vim->t_mod));
+			"Different version of VMOD %.*s already loaded\n",
+			PF(vim->t_mod));
 		vcc_ErrWhere(tl, vim->t_mod);
 		VSB_cat(tl->sb, "Previous import at:\n");
 		vcc_ErrWhere(tl, vim2->t_mod);
@@ -282,49 +304,115 @@ vcc_VmodLoad(struct vcc *tl, struct vmod_import *vim)
 
 static void v_matchproto_(vcc_do_stanza_f)
 vcc_do_event(struct vcc *tl, const struct vmod_import *vim,
-    const struct vjsn_val *vv)
+	const struct vbor *vb)
 {
 	struct inifin *ifp;
+	const char *val = NULL;
+	size_t val_len = 0;
+
+	assert(VBOR_What(vb) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(vb, &val, &val_len));
 
 	ifp = New_IniFin(tl);
 	VSB_printf(ifp->ini,
-	    "\tif (%s(ctx, &vmod_priv_%s, VCL_EVENT_LOAD))\n"
-	    "\t\treturn(1);",
-	    vv->value, vim->sym->vmod_name);
+		"\tif (%.*s(ctx, &vmod_priv_%s, VCL_EVENT_LOAD))\n"
+		"\t\treturn(1);",
+		(int)val_len, val, vim->sym->vmod_name);
 	VSB_printf(ifp->fin,
-	    "\t\t(void)%s(ctx, &vmod_priv_%s,\n"
-	    "\t\t\t    VCL_EVENT_DISCARD);",
-	    vv->value, vim->sym->vmod_name);
-	VSB_printf(ifp->event, "%s(ctx, &vmod_priv_%s, ev)",
-	    vv->value, vim->sym->vmod_name);
+		"\t\t(void)%.*s(ctx, &vmod_priv_%s,\n"
+		"\t\t\t    VCL_EVENT_DISCARD);",
+		(int)val_len, val, vim->sym->vmod_name);
+	VSB_printf(ifp->event, "%.*s(ctx, &vmod_priv_%s, ev)",
+		(int)val_len, val, vim->sym->vmod_name);
 }
 
 static void v_matchproto_(vcc_do_stanza_f)
 vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
-    const struct vjsn_val *vv)
+	const struct vbor *vb)
 {
+	struct vbor next;
+	struct vboc vboc;
+
+	const char *val = NULL;
+	size_t val_len = 0;
+
 	(void)vim;
-	do {
-		assert (vjsn_is_string(vv));
-		Fh(tl, 0, "%s\n", vv->value);
-		vv = VTAILQ_NEXT(vv, list);
-	} while(vv != NULL);
+	VBOC_Init(&vboc, (struct vbor*)vb);
+	assert(VBOR_What(vb) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(vb, &val, &val_len));
+
+	char *cproto = NULL;
+	size_t proto_len = 0;
+	while (VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING) {
+		const char *val = NULL;
+		size_t val_len = 0;
+
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		if (proto_len < val_len) {
+			// fprintf(stderr, "mallocing %ld bytes\n", val_len);
+			cproto = malloc(val_len + 1);
+			proto_len = val_len;
+		}
+		unsigned tabs = 0;
+		char *p = cproto;
+ 		for (size_t i = 0; i < val_len; i++, p++) {
+			if (val[i] == '\\') {
+				if (val[i + 1] == 't') {
+					*p = '\t';
+					i++;
+					tabs++;
+				}
+			}
+			else
+				*p = val[i];
+		}
+		cproto[val_len - tabs] = '\0';
+		// fprintf(stderr, "DOING CPROTO : %s\n", cproto);
+		Fh(tl, 0, "%s\n", cproto);
+	}
+	free(cproto);
 }
 
 static void
-vcc_vj_foreach(struct vcc *tl, const struct vmod_import *vim,
-    const char *stanza, vcc_do_stanza_f *func)
+vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
+	const char *stanza, vcc_do_stanza_f *func)
 {
-	const struct vjsn_val *vv, *vv2, *vv3;
+	struct vbor next;
+	struct vboc vboc;
+	size_t top_size;
+	const char *val = NULL;
+	size_t val_len = 0;
 
-	vv = vim->vj->value;
-	assert (vjsn_is_array(vv));
-	VTAILQ_FOREACH(vv2, &vv->children, list) {
-		assert (vjsn_is_array(vv2));
-		vv3 = VTAILQ_FIRST(&vv2->children);
-		assert (vjsn_is_string(vv3));
-		if (!strcmp(vv3->value, stanza))
-			func(tl, vim, VTAILQ_NEXT(vv3, list));
+	VBOC_Init(&vboc, (struct vbor*)vim->vb);
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(!VBOR_GetArraySize(&next, &top_size));
+	for (size_t i = 0; i < top_size; i++) {
+		size_t sub_size = 0;
+
+		int a = VBOC_Next(&vboc, &next);
+		assert(a == VBOR_ARRAY);
+		assert(!VBOR_GetArraySize(&next, &sub_size));
+		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		// assert(VBOC_Next(&vboc, &next) < VBOR_END);
+		if (val_len == strlen(stanza) && strncmp(val, stanza, val_len) == 0) {
+			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+			sub_size--;
+			func(tl, vim, &next);
+		}
+		for (size_t j = 1; j < sub_size; j++) {
+			assert(VBOC_Next(&vboc, &next) < VBOR_END);
+			size_t s = 0;
+			if (VBOR_What(&next) == VBOR_ARRAY) {
+				assert(!VBOR_GetArraySize(&next, &s));
+				sub_size += s;
+			}
+			else if (VBOR_What(&next) == VBOR_MAP) {
+				assert(!VBOR_GetMapSize(&next, &s));
+				sub_size += 2 * s;
+			}
+			// assert(VBOC_Next(&vboc, &next) < VBOR_END);
+		}
 	}
 }
 
@@ -335,7 +423,6 @@ vcc_emit_setup(struct vcc *tl, const struct vmod_import *vim)
 	const struct token *mod = vim->t_mod;
 
 	ifp = New_IniFin(tl);
-
 	VSB_cat(ifp->ini, "\tif (VPI_Vmod_Init(ctx,\n");
 	VSB_printf(ifp->ini, "\t    &VGC_vmod_%.*s,\n", PF(mod));
 	VSB_printf(ifp->ini, "\t    %u,\n", tl->vmod_count++);
@@ -353,7 +440,7 @@ vcc_emit_setup(struct vcc *tl, const struct vmod_import *vim)
 		VSB_cat(ifp->ini, "\n");
 	} else {
 		VSB_printf(ifp->ini, "\t    \"./vmod_cache/_vmod_%.*s.%s\"\n",
-		    PF(mod), vim->file_id);
+			PF(mod), vim->file_id);
 	}
 	VSB_cat(ifp->ini, "\t    ))\n");
 	VSB_cat(ifp->ini, "\t\treturn(1);");
@@ -368,22 +455,23 @@ vcc_emit_setup(struct vcc *tl, const struct vmod_import *vim)
 		VSB_cat(tl->symtab, "\t\"vext\": false,\n");
 	VSB_printf(tl->symtab, "\t\"file\": \"%s\",\n", vim->path);
 	VSB_printf(tl->symtab, "\t\"dst\": \"./vmod_cache/_vmod_%.*s.%s\"\n",
-	    PF(mod), vim->file_id);
+		PF(mod), vim->file_id);
 	VSB_cat(tl->symtab, "    }");
 
 	/* XXX: zero the function pointer structure ?*/
 	VSB_printf(ifp->fin, "\t\tVRT_priv_fini(ctx, &vmod_priv_%.*s);",
-	    PF(mod));
+		PF(mod));
 	VSB_printf(ifp->final, "\t\tVPI_Vmod_Unload(ctx, &VGC_vmod_%.*s);",
-	    PF(mod));
+		PF(mod));
 
-	vcc_vj_foreach(tl, vim, "$EVENT", vcc_do_event);
+	// fprintf(stderr, "%s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+	vcc_vb_foreach(tl, vim, "$EVENT", vcc_do_event);
 
 	Fh(tl, 0, "\n/* --- BEGIN VMOD %.*s --- */\n\n", PF(mod));
 	Fh(tl, 0, "static struct vmod *VGC_vmod_%.*s;\n", PF(mod));
 	Fh(tl, 0, "static struct vmod_priv vmod_priv_%.*s;\n", PF(mod));
 
-	vcc_vj_foreach(tl, vim, "$CPROTO", vcc_do_cproto);
+	vcc_vb_foreach(tl, vim, "$CPROTO", vcc_do_cproto);
 
 	Fh(tl, 0, "\n/* --- END VMOD %.*s --- */\n\n", PF(mod));
 }
@@ -396,8 +484,8 @@ vcc_vim_destroy(struct vmod_import **vimp)
 	TAKE_OBJ_NOTNULL(vim, vimp, VMOD_IMPORT_MAGIC);
 	if (vim->path)
 		free(vim->path);
-	if (vim->vj)
-		vjsn_delete(&vim->vj);
+	if (vim->vb)
+		VBOR_Destroy(&vim->vb);
 	if (vim->json)
 		VSB_destroy(&vim->json);
 	FREE_OBJ(vim);
@@ -545,7 +633,7 @@ vcc_ParseImport(struct vcc *tl)
 			msym->eval_priv = vsym->eval_priv;
 			msym->import = vsym->import;
 			msym->vmod_name = vsym->vmod_name;
-			vcc_VmodSymbols(tl, msym);
+			vcc_VmodSymbols(tl, msym, -1);
 			AZ(tl->err);
 			// XXX: insert msym in sideways ?
 			vcc_vim_destroy(&vim);
@@ -555,10 +643,10 @@ vcc_ParseImport(struct vcc *tl)
 
 	VTAILQ_INSERT_TAIL(&tl->sym_vmods, msym, sideways);
 
-	msym->eval_priv = vim->vj;
+	msym->eval_priv = vim->vb;
 	msym->import = vim;
 	msym->vmod_name = TlDup(tl, vim->name);
-	vcc_VmodSymbols(tl, msym);
+	vcc_VmodSymbols(tl, msym, -1);
 	ERRCHK(tl);
 
 	vcc_emit_setup(tl, vim);

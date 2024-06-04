@@ -45,6 +45,7 @@
 #include "vas.h"
 #include "miniobj.h"
 #include "vqueue.h"
+#include "vbor.h"
 #include "vjsn.h"
 #include "vsb.h"
 #include "vsc_priv.h"
@@ -93,6 +94,7 @@ struct vsc_seg {
 	const struct vsc_head	*head;
 	const char		*body;
 
+	struct vbor		*vb;
 	struct vjsn		*vj;
 
 	unsigned		npoints;
@@ -320,6 +322,28 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 
 	point->point.ptr = (volatile const void*)(seg->body + atoi(vt->value));
 	point->point.raw = vsc->raw;
+}
+
+static void
+vsc_del_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg **spp)
+{
+	unsigned u;
+	struct vsc_pt *pp;
+	struct vsc_seg *sp;
+
+	CHECK_OBJ_NOTNULL(vsc, VSC_MAGIC);
+	AN(vsm);
+	TAKE_OBJ_NOTNULL(sp, spp, VSC_SEG_MAGIC);
+	AZ(VSM_Unmap(vsm, sp->fantom));
+	if (sp->vb != NULL) {
+		VBOR_Destroy(&sp->vb);
+	} else {
+		pp = sp->points;
+		for (u = 0; u < sp->npoints; u++, pp++)
+			vsc_clean_point(pp);
+		free(sp->points);
+	}
+	FREE_OBJ(sp);
 }
 
 static struct vsc_seg *

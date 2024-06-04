@@ -38,4 +38,4 @@
 	STANZA(VMOD, vmod, SYM_NONE) \
 	STANZA(RESTRICT, restrict, SYM_NONE)
 
-void vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym);
+void vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym, unsigned ll);

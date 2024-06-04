@@ -593,7 +593,7 @@ VBOR_GetBool(const struct vbor *vbor, unsigned *res)
 	AN(res);
 	if (vbor->data[0] != 0xF4 && vbor->data[0] != 0xF5)
 		return -1;
-	*res = vbor->data[0] == 0xF5;
+	*res = vbor->data[0] == 0xF5 ? 1 : 0;
 	return 0;
 }
 

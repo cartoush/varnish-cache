@@ -38,7 +38,9 @@
 #include <string.h>
 
 #include "vcc_compile.h"
-#include "vjsn.h"
+#include "vbor.h"
+#include "vqueue.h"
+#include "vsb.h"
 
 struct expr {
 	unsigned	magic;
@@ -443,7 +445,7 @@ vcc_priv_arg(struct vcc *tl, const char *p, struct symbol *sym)
 
 struct func_arg {
 	vcc_type_t		type;
-	const struct vjsn_val	*enums;
+	const struct vbor	*enums;
 	const char		*cname;
 	const char		*name;
 	const char		*val;
@@ -469,19 +471,42 @@ static void
 vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 {
 	struct expr *e2;
-	struct vjsn_val *vv;
+	struct vboc vboc;
+	struct vbor next;
+	size_t arr_len = 0;
+	const char *val = NULL;
+	size_t val_len = 0;
 
 	if (fa->type == ENUM) {
 		ExpectErr(tl, ID);
 		ERRCHK(tl);
-		VTAILQ_FOREACH(vv, &fa->enums->children, list)
-			if (vcc_IdIs(tl->t, vv->value))
+
+		VBOC_Init(&vboc, (struct vbor*)fa->enums);
+		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+		assert(!VBOR_GetArraySize(&next, &arr_len));
+		size_t i = 0;
+		for (; i < arr_len; i++) {
+			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+			assert(!VBOR_GetString(&next, &val, &val_len));
+			val = strndup(val, val_len);
+			if (vcc_IdIs(tl->t, val)) {
+				free((void*)val);
 				break;
-		if (vv == NULL) {
+			}
+			free((void*)val);
+		}
+		if (i == arr_len) {
 			VSB_cat(tl->sb, "Wrong enum value.");
 			VSB_cat(tl->sb, "  Expected one of:\n");
-			VTAILQ_FOREACH(vv, &fa->enums->children, list)
-				VSB_printf(tl->sb, "\t%s\n", vv->value);
+
+			VBOC_Init(&vboc, (struct vbor*)fa->enums);
+			assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+			assert(!VBOR_GetArraySize(&next, &arr_len));
+			for (i = 0; i < arr_len; i++) {
+				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+				assert(!VBOR_GetString(&next, &val, &val_len));
+				VSB_printf(tl->sb, "\t%.*s\n", (int)val_len, val);
+			}
 			vcc_ErrWhere(tl, tl->t);
 			return;
 		}
@@ -508,24 +533,49 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	struct func_arg *fa, *fa2;
 	VTAILQ_HEAD(,func_arg) head;
 	struct token *tf, *t1;
-	const struct vjsn_val *vv, *vvp;
+	const struct vbor *vbor;
+	struct vboc vboc;
+	struct vbor next;
+	const char *val = NULL;
+	size_t val_len = 0;
 	const char *sa, *extra_sep;
 	char ssa[64];
 	int n;
 
-	CAST_OBJ_NOTNULL(vv, priv, VJSN_VAL_MAGIC);
-	assert(vjsn_is_array(vv));
-	vv = VTAILQ_FIRST(&vv->children);
-	rfmt = VCC_Type(VTAILQ_FIRST(&vv->children)->value);
+	// fprintf(stderr, "Enter %s:%s %X %p\n", __FILE__, __FUNCTION__, ((struct vbor*)priv)->magic, priv);
+	CAST_OBJ_NOTNULL(vbor, priv, VBOR_MAGIC);
+
+	VBOC_Init(&vboc, (struct vbor*)vbor);
+	size_t top_len = 0;
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(!VBOR_GetArraySize(&next, &top_len));
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+
+	// XXX
+	// assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	// assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	// assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	val = strndup(val, val_len);
+	rfmt = VCC_Type(val);
+	free((void*)val);
 	AN(rfmt);
-	vv = VTAILQ_NEXT(vv, list);
-	cfunc = vv->value;
-	vv = VTAILQ_NEXT(vv, list);
-	sa = vv->value;
-	if (*sa == '\0') {
+
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	cfunc = strndup(val, val_len);
+	// fprintf(stderr, "RFMT : %s CFUNC : %s\n", rfmt->tostring, cfunc);
+
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	if (val_len == 0)
 		sa = NULL;
-	}
-	vv = VTAILQ_NEXT(vv, list);
+	else
+		sa = strndup(val, val_len);
+	// fprintf(stderr, "SA IS : %s val_len : %d\n", sa, (int)val_len);
+
 	if (sym->kind == SYM_METHOD) {
 		if (*e == NULL) {
 			VSB_cat(tl->sb, "Syntax error.");
@@ -547,41 +597,53 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		extra_sep = ", ";
 	}
 	VTAILQ_INIT(&head);
-	for (;vv != NULL; vv = VTAILQ_NEXT(vv, list)) {
-		assert(vjsn_is_array(vv));
+	for (size_t i = 0; i < top_len - 3; i++) {
+		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+		size_t arr_len = 0;
 		fa = calloc(1, sizeof *fa);
 		AN(fa);
 		fa->cname = cfunc;
 		VTAILQ_INSERT_TAIL(&head, fa, list);
 
-		vvp = VTAILQ_FIRST(&vv->children);
-		if (!memcmp(vvp->value, "PRIV_", 5)) {
-			fa->result = vcc_priv_arg(tl, vvp->value, sym);
-			vvp = VTAILQ_NEXT(vvp, list);
-			if (vvp != NULL)
-				fa->name = vvp->value;
+		assert(!VBOR_GetArraySize(&next, &arr_len));
+		VBOC_Next(&vboc, &next);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		// fprintf(stderr, "%s:%s:%d val : %.*s %ld\n", __FILE__, __FUNCTION__, __LINE__, (int)val_len, val, arr_len);
+		if (!memcmp(val, "PRIV_", 5)) {
+			val = strndup(val, val_len);
+			fa->result = vcc_priv_arg(tl, val, sym);
+			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+			if (!VBOR_GetString(&next, &val, &val_len))
+				fa->name = strndup(val, val_len);
 			continue;
 		}
-		fa->type = VCC_Type(vvp->value);
+		fa->type = VCC_Type(strndup(val, val_len));
 		AN(fa->type);
-		vvp = VTAILQ_NEXT(vvp, list);
-		if (vvp != NULL) {
-			fa->name = vvp->value;
-			vvp = VTAILQ_NEXT(vvp, list);
-			if (vvp != NULL) {
-				fa->val = vvp->value;
-				vvp = VTAILQ_NEXT(vvp, list);
-				if (vvp != NULL) {
-					fa->enums = vvp;
-					vvp = VTAILQ_NEXT(vvp, list);
+		if (arr_len >= 2) {
+			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+			assert(!VBOR_GetString(&next, &val, &val_len));
+			fa->name = strndup(val, val_len);
+			// fprintf(stderr, "%s:%s:%d val : %.*s\n", __FILE__,  __FUNCTION__, __LINE__, (int)val_len, val);
+			if (arr_len >= 3) {
+				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+				assert(!VBOR_GetString(&next, &val, &val_len));
+				fa->val = strndup(val, val_len);
+				// fprintf(stderr, "%s:%s:%d val : %.*s\n", __FILE__,  __FUNCTION__, __LINE__, (int)val_len, val);
+				if (arr_len >= 4) {
+					struct vbor *vb;
+					assert(VBOC_Next(&vboc, &next) < VBOR_END);
+					ALLOC_OBJ(vb, VBOR_MAGIC);
+					VBOR_Copy(vb, &next);
+					vb->flags = VBOR_ALLOCATED;
+					fa->enums = vb;
+					VBOC_Next(&vboc, &next);
 				}
 			}
 		}
-		if (sa != NULL && vvp != NULL && vjsn_is_true(vvp)) {
+		if (sa != NULL && VBOR_What(&next) == VBOR_BOOL) {
 			fa->optional = 1;
-			vvp = VTAILQ_NEXT(vvp, list);
+			assert(VBOC_Next(&vboc, &next) < VBOR_END);
 		}
-		AZ(vvp);
 	}
 
 	VTAILQ_FOREACH(fa, &head, list) {
@@ -635,17 +697,17 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 
 	if (sa != NULL)
 		e1 = vcc_mk_expr(rfmt, "%s(ctx%s%s,\v+\n&(%s)\v+ {\n",
-		    cfunc, extra_sep, extra, sa);
+			cfunc, extra_sep, extra, sa);
 	else
 		e1 = vcc_mk_expr(rfmt, "%s(ctx%s%s\v+",
-		    cfunc, extra_sep, extra);
+			cfunc, extra_sep, extra);
 	n = 0;
 	VTAILQ_FOREACH_SAFE(fa, &head, list, fa2) {
 		n++;
 		if (fa->optional) {
 			AN(fa->name);
 			bprintf(ssa, "\v1.valid_%s = %d,\n",
-			    fa->name, fa->avail);
+				fa->name, fa->avail);
 			e1 = vcc_expr_edit(tl, e1->fmt, ssa, e1, NULL);
 		}
 		if (fa->result == NULL && fa->type == ENUM && fa->val != NULL)
@@ -660,11 +722,11 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 			e1 = vcc_expr_edit(tl, e1->fmt, ssa, e1, fa->result);
 		} else if (fa->result != NULL) {
 			e1 = vcc_expr_edit(tl, e1->fmt, "\v1,\n\v2",
-			    e1, fa->result);
+				e1, fa->result);
 		} else if (!fa->optional) {
 			if (fa->name)
 				VSB_printf(tl->sb, "Argument '%s' missing\n",
-				    fa->name);
+					fa->name);
 			else
 				VSB_printf(tl->sb, "Argument %d missing\n", n);
 			vcc_ErrWhere(tl, tl->t);
@@ -685,11 +747,12 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
  */
 
 void
-vcc_Eval_Func(struct vcc *tl, const struct vjsn_val *spec,
+vcc_Eval_Func(struct vcc *tl, const struct vbor *spec,
     const char *extra, struct symbol *sym)
 {
 	struct expr *e = NULL;
 
+	// fprintf(stderr, "VCC_FUNC CALLED FROM : %s:%s\n", __FILE__, __FUNCTION__);
 	vcc_func(tl, &e, spec, extra, sym);
 	if (tl->err)
 		VSB_cat(tl->sb, "While compiling function call:\n");
@@ -1520,6 +1583,7 @@ vcc_Act_Call(struct vcc *tl, struct token *t, struct symbol *sym)
 	struct expr *e;
 
 	e = NULL;
+	fprintf(stderr, "VCC_FUNC CALLED FROM : %s:%s\n", __FILE__, __FUNCTION__);
 	vcc_func(tl, &e, sym->eval_priv, sym->extra, sym);
 	if (!tl->err) {
 		vcc_expr_fmt(tl->fb, tl->indent, e);
