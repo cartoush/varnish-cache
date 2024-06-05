@@ -309,7 +309,7 @@ vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym, unsigned ll)
 		STANZA_TBL
 #undef STANZA
 		if (kind != SYM_NONE) {
-			func_sym(tl, kind, sym, &next, vbor, arr_len - 2);
+			func_sym(tl, kind, sym, &next, vbor, arr_len - 1);
 			ERRCHK(tl);
 		}
 		for (size_t i = 2; i < arr_len; i++) {
@@ -371,10 +371,12 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	isym->eval_priv = vbor;
 
 	VBOC_Init(&vboc, (struct vbor*)vbor);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
+	assert(!VBOR_GetMapSize(&next, &map_size));
 	// vbor = flags
 
-	assert(!VBOR_GetMapSize(vbor, &map_size));
+	fprintf(stderr, "map_size : %ld\n", map_size);
 	for (size_t i = 0; i < map_size; i++) {
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
@@ -401,8 +403,14 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	struct vbor vbor2;
 
 	assert(VBOC_Next(&vboc, &vbor2) == VBOR_ARRAY);
-	for (size_t i = 2; i < arr_len; i++) {
+	assert(!VBOR_GetArraySize(&vbor2, &arr_len));
+	for (size_t i = 0; i < arr_len; i++) {
+		size_t add_arr_len = 0;
 		assert(VBOC_Next(&vboc, &next) < VBOR_END);
+		if (VBOR_What(&next) == VBOR_ARRAY) {
+			assert(!VBOR_GetArraySize(&next, &add_arr_len));
+			arr_len += add_arr_len;
+		}
 	}
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
@@ -421,6 +429,8 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	assert(val_len == sizeof("$FINI") - 1 && !strncmp(val, "$FINI", val_len));
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	ifp = New_IniFin(tl);
