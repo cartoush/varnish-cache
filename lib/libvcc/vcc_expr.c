@@ -619,17 +619,28 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		}
 		fa->type = VCC_Type(strndup(val, val_len));
 		AN(fa->type);
-		if (arr_len >= 2) {
-			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-			assert(!VBOR_GetString(&next, &val, &val_len));
-			fa->name = strndup(val, val_len);
-			// fprintf(stderr, "%s:%s:%d val : %.*s\n", __FILE__,  __FUNCTION__, __LINE__, (int)val_len, val);
-			if (arr_len >= 3) {
-				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(arr_len < 6);
+		if (arr_len >= 3) {
+			enum vbor_major_type type = VBOC_Next(&vboc, &next);
+			assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
+			if (type == VBOR_TEXT_STRING) {
 				assert(!VBOR_GetString(&next, &val, &val_len));
-				fa->val = strndup(val, val_len);
-				// fprintf(stderr, "%s:%s:%d val : %.*s\n", __FILE__,  __FUNCTION__, __LINE__, (int)val_len, val);
-				if (arr_len >= 4) {
+				fa->name = strndup(val, val_len);
+			}
+			else
+				fa->name = NULL;
+			fprintf(stderr, "%s:%s:%d val : %s\n", __FILE__,  __FUNCTION__, __LINE__, fa->name);
+			if (arr_len >= 4) {
+				type = VBOC_Next(&vboc, &next);
+				assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
+				if (type == VBOR_TEXT_STRING) {
+					assert(!VBOR_GetString(&next, &val, &val_len));
+					fa->val = strndup(val, val_len);
+				}
+				else
+					fa->val = NULL;
+				fprintf(stderr, "%s:%s:%d val : %s\n", __FILE__,  __FUNCTION__, __LINE__, fa->val);
+				if (arr_len >= 5) {
 					struct vbor *vb;
 					assert(VBOC_Next(&vboc, &next) < VBOR_END);
 					ALLOC_OBJ(vb, VBOR_MAGIC);
@@ -640,10 +651,8 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 				}
 			}
 		}
-		if (sa != NULL && VBOR_What(&next) == VBOR_BOOL) {
+		if (sa != NULL && VBOR_What(&next) == VBOR_BOOL)
 			fa->optional = 1;
-			assert(VBOC_Next(&vboc, &next) < VBOR_END);
-		}
 	}
 
 	VTAILQ_FOREACH(fa, &head, list) {
