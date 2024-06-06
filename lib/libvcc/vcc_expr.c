@@ -637,7 +637,23 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 				assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
 				if (type == VBOR_TEXT_STRING) {
 					assert(!VBOR_GetString(&next, &val, &val_len));
-					fa->val = strndup(val, val_len);
+					char *p = malloc(val_len);
+					AN(p);
+					fa->val = p;
+					for (size_t i = 0; i < val_len; i++, p++) {
+						fprintf(stderr, "%c", val[i]);
+						if (val[i] == '\\') {
+							fprintf(stderr, "%c", val[i + 1]);
+							if (val[i + 1] == '"') {
+								*p = '"';
+								i++;
+							}
+						}
+						else
+							*p = val[i];
+					}
+					fprintf(stderr, "\n");
+					*p = '\0';
 				}
 				else
 					fa->val = NULL;

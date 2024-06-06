@@ -353,20 +353,18 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 			cproto = malloc(val_len + 1);
 			proto_len = val_len;
 		}
-		unsigned tabs = 0;
 		char *p = cproto;
  		for (size_t i = 0; i < val_len; i++, p++) {
 			if (val[i] == '\\') {
 				if (val[i + 1] == 't') {
 					*p = '\t';
 					i++;
-					tabs++;
 				}
 			}
 			else
 				*p = val[i];
 		}
-		cproto[val_len - tabs] = '\0';
+		*p = '\0';
 		// fprintf(stderr, "DOING CPROTO : %s\n", cproto);
 		Fh(tl, 0, "%s\n", cproto);
 	}
