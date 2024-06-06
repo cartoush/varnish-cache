@@ -248,16 +248,13 @@ vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym, unsigned ll)
 	}
 
 	size_t ii = 0;
+	struct vbor vv;
 	while ((type = VBOC_Next(&vboc, &next)) < VBOR_END && ii < ll) {
 		size_t arr_len = 0;
 		const char *val = NULL;
 		size_t val_len = 0;
 
 		ii++;
-
-		if (type == VBOR_TEXT_STRING) {
-			VBOR_GetString(&next, &val, &val_len);
-		}
 		if (type == VBOR_MAP) {
 			assert(!VBOR_GetMapSize(&next, &arr_len));
 			arr_len *= 2;
@@ -308,21 +305,26 @@ vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym, unsigned ll)
 #define STANZA(UU, ll, ss) if (val_len == sizeof("$" #UU) - 1 && !strncmp(val, "$" #UU, val_len)) kind = ss;
 		STANZA_TBL
 #undef STANZA
-		if (kind != SYM_NONE) {
-			func_sym(tl, kind, sym, &next, vbor, arr_len - 1);
-			ERRCHK(tl);
-		}
+		size_t len = arr_len - 1;
 		for (size_t i = 2; i < arr_len; i++) {
 			size_t s = 0;
-			assert(VBOC_Next(&vboc, &next) < VBOR_END);
-			if (VBOR_What(&next) == VBOR_ARRAY) {
-				assert(!VBOR_GetArraySize(&next, &s));
+			assert(VBOC_Next(&vboc, &vv) < VBOR_END);
+			if (VBOR_What(&vv) == VBOR_ARRAY) {
+				assert(!VBOR_GetArraySize(&vv, &s));
 				arr_len += s;
 			}
-			else if (VBOR_What(&next) == VBOR_MAP) {
-				assert(!VBOR_GetMapSize(&next, &s));
+			else if (VBOR_What(&vv) == VBOR_MAP) {
+				assert(!VBOR_GetMapSize(&vv, &s));
 				arr_len += 2 * s;
 			}
+			else if (VBOR_What(&vv) == VBOR_TEXT_STRING) {
+				assert(!VBOR_GetString(&vv, &val, &val_len));
+				fprintf(stderr, "SKIPPING: %.*s\n", (int)val_len, val);
+			}
+		}
+		if (kind != SYM_NONE) {
+			func_sym(tl, kind, sym, &next, &vv, len);
+			ERRCHK(tl);
 		}
 	}
 }
