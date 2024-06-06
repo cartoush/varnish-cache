@@ -612,9 +612,11 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		if (!memcmp(val, "PRIV_", 5)) {
 			val = strndup(val, val_len);
 			fa->result = vcc_priv_arg(tl, val, sym);
-			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-			if (!VBOR_GetString(&next, &val, &val_len))
-				fa->name = strndup(val, val_len);
+			if (arr_len >= 2) {
+				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+				if (!VBOR_GetString(&next, &val, &val_len))
+					fa->name = strndup(val, val_len);
+			}
 			continue;
 		}
 		fa->type = VCC_Type(strndup(val, val_len));
