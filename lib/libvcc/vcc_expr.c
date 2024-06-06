@@ -655,6 +655,8 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 						for (size_t j = 0; j < arr_len; j++)
 							assert(VBOC_Next(&vboc, &next) < VBOR_END);
 					}
+					else
+						assert(VBOC_Next(&vboc, &next) < VBOR_END);
 				}
 			}
 		}
