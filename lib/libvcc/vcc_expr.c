@@ -666,18 +666,23 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 					vb->flags = VBOR_ALLOCATED;
 					fa->enums = vb;
 					if (VBOR_What(&next) == VBOR_ARRAY) {
-						VBOR_GetArraySize(&next, &arr_len);
-						fprintf(stderr, "array len : %ld\n", arr_len);
-						for (size_t j = 0; j < arr_len; j++)
+						size_t ll = 0;
+						VBOR_GetArraySize(&next, &ll);
+						for (size_t j = 0; j < ll; j++)
 							assert(VBOC_Next(&vboc, &next) < VBOR_END);
 					}
-					else
+					if (arr_len >= 5) {
+						unsigned b = 0;
 						assert(VBOC_Next(&vboc, &next) < VBOR_END);
+						if (VBOR_What(&next) == VBOR_BOOL) {
+							assert(!VBOR_GetBool(&next, &b));
+							if (sa != NULL && b == 1)
+								fa->optional = 1;
+						}
+					}
 				}
 			}
 		}
-		if (sa != NULL && VBOR_What(&next) == VBOR_BOOL)
-			fa->optional = 1;
 	}
 
 	VTAILQ_FOREACH(fa, &head, list) {
