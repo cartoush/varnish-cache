@@ -606,7 +606,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		VTAILQ_INSERT_TAIL(&head, fa, list);
 
 		assert(!VBOR_GetArraySize(&next, &arr_len));
-		VBOC_Next(&vboc, &next);
+		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		// fprintf(stderr, "%s:%s:%d val : %.*s %ld\n", __FILE__, __FUNCTION__, __LINE__, (int)val_len, val, arr_len);
 		if (!memcmp(val, "PRIV_", 5)) {
@@ -622,7 +622,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		fa->type = VCC_Type(strndup(val, val_len));
 		AN(fa->type);
 		assert(arr_len < 6);
-		if (arr_len >= 3) {
+		if (arr_len >= 2) {
 			enum vbor_major_type type = VBOC_Next(&vboc, &next);
 			assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
 			if (type == VBOR_TEXT_STRING) {
@@ -632,7 +632,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 			else
 				fa->name = NULL;
 			fprintf(stderr, "%s:%s:%d val : %s\n", __FILE__,  __FUNCTION__, __LINE__, fa->name);
-			if (arr_len >= 4) {
+			if (arr_len >= 3) {
 				type = VBOC_Next(&vboc, &next);
 				assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
 				if (type == VBOR_TEXT_STRING) {
@@ -642,14 +642,19 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 				else
 					fa->val = NULL;
 				fprintf(stderr, "%s:%s:%d val : %s\n", __FILE__,  __FUNCTION__, __LINE__, fa->val);
-				if (arr_len >= 5) {
+				if (arr_len >= 4) {
 					struct vbor *vb;
 					assert(VBOC_Next(&vboc, &next) < VBOR_END);
 					ALLOC_OBJ(vb, VBOR_MAGIC);
 					VBOR_Copy(vb, &next);
 					vb->flags = VBOR_ALLOCATED;
 					fa->enums = vb;
-					VBOC_Next(&vboc, &next);
+					if (VBOR_What(&next) == VBOR_ARRAY) {
+						VBOR_GetArraySize(&next, &arr_len);
+						fprintf(stderr, "array len : %ld\n", arr_len);
+						for (size_t j = 0; j < arr_len; j++)
+							assert(VBOC_Next(&vboc, &next) < VBOR_END);
+					}
 				}
 			}
 		}
