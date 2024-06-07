@@ -33,7 +33,6 @@
 
 #include "config.h"
 
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -199,7 +198,6 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 	ALLOC_OBJ(vbor, VBOR_MAGIC);
 	VBOR_Copy(vbor, v);
 	vbor->flags = VBOR_ALLOCATED;
-	// fprintf(stderr, "vbor put in %p\n", vbor);
 
 	if (kind == SYM_OBJECT) {
 		VBOR_Copy(vbor, &next);
@@ -317,10 +315,6 @@ vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym, unsigned ll)
 				assert(!VBOR_GetMapSize(&vv, &s));
 				arr_len += 2 * s;
 			}
-			else if (VBOR_What(&vv) == VBOR_TEXT_STRING) {
-				assert(!VBOR_GetString(&vv, &val, &val_len));
-				fprintf(stderr, "SKIPPING: %.*s\n", (int)val_len, val);
-			}
 		}
 		if (kind != SYM_NONE) {
 			func_sym(tl, kind, sym, &next, &vv, len);
@@ -378,7 +372,6 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	assert(!VBOR_GetMapSize(&next, &map_size));
 	// vbor = flags
 
-	fprintf(stderr, "map_size : %ld\n", map_size);
 	for (size_t i = 0; i < map_size; i++) {
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));

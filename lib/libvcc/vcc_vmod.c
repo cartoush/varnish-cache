@@ -154,7 +154,6 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	vbob = VBOB_Alloc(10);
 	AN(vbob);
 	json_parse_res = VBOB_ParseJSON(vbob, jsn);
-	fprintf(stderr, "json_parse_res : %d\n", json_parse_res);
 	ALLOC_OBJ(vim->vb, VBOR_MAGIC);
 	if (VBOB_Finish(vbob, vim->vb) == -1) {
 		if (json_parse_res > JSON_PARSE_OK)
@@ -171,7 +170,6 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	if (VBOC_Next(&vboc, &next) != VBOR_TEXT_STRING)
 		return "Not string[2]";
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	fprintf(stderr, "vmod ? : %.*s\n", (int)val_len, val);
 	if (val_len != sizeof("$VMOD") - 1 || strncmp(val, "$VMOD", val_len) != 0)
 		return "Not $VMOD[3]";
 
@@ -363,7 +361,6 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (proto_len < val_len) {
-			// fprintf(stderr, "mallocing %ld bytes\n", val_len);
 			cproto = malloc(val_len + 1);
 			proto_len = val_len;
 		}
@@ -379,7 +376,6 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 				*p = val[i];
 		}
 		*p = '\0';
-		// fprintf(stderr, "DOING CPROTO : %s\n", cproto);
 		Fh(tl, 0, "%s\n", cproto);
 	}
 	free(cproto);
@@ -406,7 +402,6 @@ vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
 		assert(!VBOR_GetArraySize(&next, &sub_size));
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
-		// assert(VBOC_Next(&vboc, &next) < VBOR_END);
 		if (val_len == strlen(stanza) && strncmp(val, stanza, val_len) == 0) {
 			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 			sub_size--;
@@ -476,7 +471,6 @@ vcc_emit_setup(struct vcc *tl, const struct vmod_import *vim)
 	VSB_printf(ifp->final, "\t\tVPI_Vmod_Unload(ctx, &VGC_vmod_%.*s);",
 		PF(mod));
 
-	// fprintf(stderr, "%s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
 	vcc_vb_foreach(tl, vim, "$EVENT", vcc_do_event);
 
 	Fh(tl, 0, "\n/* --- BEGIN VMOD %.*s --- */\n\n", PF(mod));
@@ -575,7 +569,6 @@ vcc_ParseImport(struct vcc *tl)
 				continue;
 			if (!vim->unimported_vext)
 				continue;
-			fprintf(stderr, "IMPORT %s from VEXT\n", vim->name);
 			vim->unimported_vext = 0;
 			vim->t_mod = mod;
 			vim->sym = msym;
@@ -681,7 +674,6 @@ vcc_ImportVext(struct vcc *tl, const char *filename)
 		FREE_OBJ(vim);
 		return;
 	}
-	fprintf(stderr, "FOUND VMOD in VEXT %s\n", filename);
 	if (vcc_VmodLoad(tl, vim) < 0 || tl->err) {
 		// vcc_ErrWhere(tl, vim->t_mod);
 		vcc_vim_destroy(&vim);
@@ -692,5 +684,4 @@ vcc_ImportVext(struct vcc *tl, const char *filename)
 	vim->path = strdup(filename);
 	vim->path += 1;
 	AN(vim->path);
-	fprintf(stderr, "GOOD VMOD %s in VEXT %s\n", vim->name, filename);
 }

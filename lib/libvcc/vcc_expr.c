@@ -542,7 +542,6 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	char ssa[64];
 	int n;
 
-	// fprintf(stderr, "Enter %s:%s %X %p\n", __FILE__, __FUNCTION__, ((struct vbor*)priv)->magic, priv);
 	CAST_OBJ_NOTNULL(vbor, priv, VBOR_MAGIC);
 
 	VBOC_Init(&vboc, (struct vbor*)vbor);
@@ -551,11 +550,6 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	assert(!VBOR_GetArraySize(&next, &top_len));
 	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-
-	// XXX
-	// assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	// assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	// assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	val = strndup(val, val_len);
@@ -566,7 +560,6 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	cfunc = strndup(val, val_len);
-	// fprintf(stderr, "RFMT : %s CFUNC : %s\n", rfmt->tostring, cfunc);
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
@@ -574,7 +567,6 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		sa = NULL;
 	else
 		sa = strndup(val, val_len);
-	// fprintf(stderr, "SA IS : %s val_len : %d\n", sa, (int)val_len);
 
 	if (sym->kind == SYM_METHOD) {
 		if (*e == NULL) {
@@ -608,7 +600,6 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		assert(!VBOR_GetArraySize(&next, &arr_len));
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
-		// fprintf(stderr, "%s:%s:%d val : %.*s %ld\n", __FILE__, __FUNCTION__, __LINE__, (int)val_len, val, arr_len);
 		if (!memcmp(val, "PRIV_", 5)) {
 			val = strndup(val, val_len);
 			fa->result = vcc_priv_arg(tl, val, sym);
@@ -631,7 +622,6 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 			}
 			else
 				fa->name = NULL;
-			fprintf(stderr, "%s:%s:%d val : %s\n", __FILE__,  __FUNCTION__, __LINE__, fa->name);
 			if (arr_len >= 3) {
 				type = VBOC_Next(&vboc, &next);
 				assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
@@ -641,9 +631,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 					AN(p);
 					fa->val = p;
 					for (size_t i = 0; i < val_len; i++, p++) {
-						fprintf(stderr, "%c", val[i]);
 						if (val[i] == '\\') {
-							fprintf(stderr, "%c", val[i + 1]);
 							if (val[i + 1] == '"') {
 								*p = '"';
 								i++;
@@ -652,12 +640,10 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 						else
 							*p = val[i];
 					}
-					fprintf(stderr, "\n");
 					*p = '\0';
 				}
 				else
 					fa->val = NULL;
-				fprintf(stderr, "%s:%s:%d val : %s\n", __FILE__,  __FUNCTION__, __LINE__, fa->val);
 				if (arr_len >= 4) {
 					struct vbor *vb;
 					assert(VBOC_Next(&vboc, &next) < VBOR_END);
@@ -791,7 +777,6 @@ vcc_Eval_Func(struct vcc *tl, const struct vbor *spec,
 {
 	struct expr *e = NULL;
 
-	// fprintf(stderr, "VCC_FUNC CALLED FROM : %s:%s\n", __FILE__, __FUNCTION__);
 	vcc_func(tl, &e, spec, extra, sym);
 	if (tl->err)
 		VSB_cat(tl->sb, "While compiling function call:\n");
@@ -1622,7 +1607,6 @@ vcc_Act_Call(struct vcc *tl, struct token *t, struct symbol *sym)
 	struct expr *e;
 
 	e = NULL;
-	fprintf(stderr, "VCC_FUNC CALLED FROM : %s:%s\n", __FILE__, __FUNCTION__);
 	vcc_func(tl, &e, sym->eval_priv, sym->extra, sym);
 	if (!tl->err) {
 		vcc_expr_fmt(tl->fb, tl->indent, e);
