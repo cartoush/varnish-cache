@@ -383,10 +383,8 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		VBOC_Next(&vboc, &next);
-		if (null_ok == -1 && val_len == sizeof("NULL_OK") - 1 && !strncmp(val, "NULL_OK", val_len)) {
+		if (null_ok == -1 && val_len == sizeof("NULL_OK") - 1 && !strncmp(val, "NULL_OK", val_len))
 			assert(!VBOR_GetBool(&next, &null_ok));
-			null_ok = 1;
-		}
 	}
 	if (!null_ok)
 		VTAILQ_INSERT_TAIL(&tl->sym_objects, isym, sideways);
