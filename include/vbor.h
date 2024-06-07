@@ -95,6 +95,14 @@ int	VBOR_GetByteSize(struct vbor *vbor, size_t *len);
 
 enum vbor_major_type	VBOR_What(const struct vbor *vbor);
 
+enum vbor_json_parse_status {
+	JSON_PARSE_OK = 0,
+	JSON_PARSE_UNRECOGNIZED_VAL,
+	JSON_PARSE_BAD_NUMBER,
+	JSON_PARSE_UNTERMINATED_STR,
+	JSON_PARSE_MISSING_CLOSING_CH,
+};
+
 struct vbob_pos {
 	size_t	pos;
 	size_t	len;

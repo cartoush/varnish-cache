@@ -370,10 +370,11 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
 void VBOR_Destroy(struct vbor **vbor)
 {
 	CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
-	AN((*vbor)->data);
-	assert((*vbor)->flags & (VBOR_ALLOCATED | VBOR_OWNS_DATA));
-	free((void *)(*vbor)->data);
-	(*vbor)->data = NULL;
+	assert((*vbor)->flags & VBOR_ALLOCATED);
+	if ((*vbor)->flags & VBOR_OWNS_DATA && (*vbor)->data != NULL) {
+		free((void *)(*vbor)->data);
+		(*vbor)->data = NULL;
+	}
 	memset(*vbor, 0, sizeof(**vbor));
 	FREE_OBJ(*vbor);
 }
@@ -381,9 +382,8 @@ void VBOR_Destroy(struct vbor **vbor)
 void VBOR_Fini(struct vbor *vbor)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	AN(vbor->data);
 	assert(!(vbor->flags & VBOR_ALLOCATED));
-	if (vbor->flags & VBOR_OWNS_DATA) {
+	if (vbor->flags & VBOR_OWNS_DATA && vbor->data != NULL) {
 		free((void *)vbor->data);
 		vbor->data = NULL;
 	}
@@ -999,7 +999,8 @@ json_count_elements(const char *json)
 	return count;
 }
 
-int VBOB_ParseJSON(struct vbob *vbob, const char *json)
+int
+VBOB_ParseJSON(struct vbob *vbob, const char *json)
 {
 	AN(json);
 	AN(vbob);
@@ -1015,7 +1016,7 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 		case '{':;
 			size_t count = json_count_elements(json);
 			if (count == (size_t)-1) {
-				vbob->err = -1;
+				vbob->err = JSON_PARSE_MISSING_CLOSING_CH;
 				break;
 			}
 			VBOB_AddMap(vbob, count);
@@ -1024,7 +1025,7 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 		case '[':
 			count = json_count_elements(json);
 			if (count == (size_t)-1) {
-				vbob->err = -1;
+				vbob->err = JSON_PARSE_MISSING_CLOSING_CH;
 				break;
 			}
 			VBOB_AddArray(vbob, count);
@@ -1038,7 +1039,7 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 			sign = -1;
 			json++;
 			if (!isdigit(*json))
-				vbob->err = -1;
+				vbob->err = JSON_PARSE_BAD_NUMBER;
 			break;
 		case '0':
 		case '1':
@@ -1067,7 +1068,7 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 			json++;
 			const char *end = get_str_end(json);
 			if (end == NULL) {
-				vbob->err = -1;
+				vbob->err = JSON_PARSE_UNTERMINATED_STR;
 				break;
 			}
 			VBOB_AddString(vbob, json, end - json);
@@ -1089,10 +1090,10 @@ int VBOB_ParseJSON(struct vbob *vbob, const char *json)
 				json += sizeof("null");
 			}
 			else
-				vbob->err = -1;
+				vbob->err = JSON_PARSE_UNRECOGNIZED_VAL;
 			break;
 		default:
-			vbob->err = -1;
+			vbob->err = JSON_PARSE_UNRECOGNIZED_VAL;
 		}
 	}
 	return vbob->err;

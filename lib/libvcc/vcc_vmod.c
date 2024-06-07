@@ -132,6 +132,14 @@ vcc_Extract_JSON(struct vmod_import *vim, const char *filename)
 	return (0);
 }
 
+static const char *jsn_parse_str[] = {
+	NULL,
+	"Unrecognized value",
+	"Bad number",
+	"Unterminated string",
+	"Closing character missing"
+};
+
 static const char *
 vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 {
@@ -141,13 +149,18 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	const char *val = NULL;
 	size_t val_len = 0;
 	char *p;
+	enum vbor_json_parse_status json_parse_res = JSON_PARSE_OK;
 
 	vbob = VBOB_Alloc(10);
 	AN(vbob);
-	VBOB_ParseJSON(vbob, jsn);
+	json_parse_res = VBOB_ParseJSON(vbob, jsn);
+	fprintf(stderr, "json_parse_res : %d\n", json_parse_res);
 	ALLOC_OBJ(vim->vb, VBOR_MAGIC);
-	if (VBOB_Finish(vbob, vim->vb) == -1)
+	if (VBOB_Finish(vbob, vim->vb) == -1) {
+		if (json_parse_res > JSON_PARSE_OK)
+			return jsn_parse_str[json_parse_res];
 		return NULL;
+	}
 	vim->vb->flags = VBOR_ALLOCATED | VBOR_OWNS_DATA;
 
 	VBOC_Init(&vboc, vim->vb);
@@ -158,7 +171,8 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	if (VBOC_Next(&vboc, &next) != VBOR_TEXT_STRING)
 		return "Not string[2]";
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	if (val_len == sizeof("$VMOD") && strncmp(val, "$VMOD", val_len) != 0)
+	fprintf(stderr, "vmod ? : %.*s\n", (int)val_len, val);
+	if (val_len != sizeof("$VMOD") - 1 || strncmp(val, "$VMOD", val_len) != 0)
 		return "Not $VMOD[3]";
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
@@ -482,8 +496,13 @@ vcc_vim_destroy(struct vmod_import **vimp)
 	TAKE_OBJ_NOTNULL(vim, vimp, VMOD_IMPORT_MAGIC);
 	if (vim->path)
 		free(vim->path);
-	if (vim->vb)
-		VBOR_Destroy(&vim->vb);
+	if (vim->vb) {
+		struct vbor *v = vim->vb;
+		if (v->flags & VBOR_ALLOCATED)
+			VBOR_Destroy(&v);
+		else
+			VBOR_Fini(vim->vb);
+	}
 	if (vim->json)
 		VSB_destroy(&vim->json);
 	FREE_OBJ(vim);
