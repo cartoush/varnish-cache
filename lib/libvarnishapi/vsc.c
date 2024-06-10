@@ -95,7 +95,6 @@ struct vsc_seg {
 	const char		*body;
 
 	struct vbor		*vb;
-	struct vjsn		*vj;
 
 	unsigned		npoints;
 	struct vsc_pt		*points;
@@ -241,19 +240,89 @@ vsc_clean_point(struct vsc_pt *point)
 
 static void
 vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
-    const struct vjsn_val *vv, struct vsb *vsb, struct vsc_pt *point)
+    const struct vbor *vb, struct vsb *vsb, struct vsc_pt *point)
 {
-	struct vjsn_val *vt;
+	struct vboc vboc;
+	struct vbor next;
+	size_t map_len = 0;
+
+	const char *name = NULL;
+	size_t name_len = 0;
+	const char *ctype = NULL;
+	size_t ctype_len = 0;
+	const char *oneliner = NULL;
+	size_t oneliner_len = 0;
+	const char *docs = NULL;
+	size_t docs_len = 0;
+	const char *type = NULL;
+	size_t type_len = 0;
+	const char *format = NULL;
+	size_t format_len = 0;
+	const char *level = NULL;
+	size_t level_len = 0;
+	const char *index = NULL;
+
+	const char *kval = NULL;
+	size_t kval_len = 0;
+	const char *vval = NULL;
+	size_t vval_len = 0;
 
 	CHECK_OBJ_NOTNULL(vsc, VSC_MAGIC);
 	memset(point, 0, sizeof *point);
 
-	vt = vjsn_child(vv, "name");
-	AN(vt);
-	assert(vjsn_is_string(vt));
+	assert(VBOR_What(vb) == VBOR_MAP);
+	assert(!VBOR_GetMapSize(vb, &map_len));
+	VBOC_Init(&vboc, (struct vbor*)vb);
+	VBOC_Next(&vboc, &next);
+	for (size_t i = 0; i < map_len; i++) {
+		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &kval, &kval_len));
+		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &vval, &vval_len));
+		if (sizeof("name") - 1 == kval_len && !strncmp(kval, "name", kval_len)) {
+			name = vval;
+			name_len = vval_len;
+		}
+		else if (sizeof("ctype") - 1 == kval_len && !strncmp(kval, "ctype", kval_len)) {
+			ctype = vval;
+			ctype_len = vval_len;
+		}
+		else if (sizeof("oneliner") - 1 == kval_len && !strncmp(kval, "oneliner", kval_len)) {
+			oneliner = vval;
+			oneliner_len = vval_len;
+		}
+		else if (sizeof("docs") - 1 == kval_len && !strncmp(kval, "docs", kval_len)) {
+			docs = vval;
+			docs_len = vval_len;
+		}
+		else if (sizeof("type") - 1 == kval_len && !strncmp(kval, "type", kval_len)) {
+			type = vval;
+			type_len = vval_len;
+		}
+		else if (sizeof("format") - 1 == kval_len && !strncmp(kval, "format", kval_len)) {
+			format = vval;
+			format_len = vval_len;
+		}
+		else if (sizeof("level") - 1 == kval_len && !strncmp(kval, "level", kval_len)) {
+			level = vval;
+			level_len = vval_len;
+		}
+		else if (sizeof("index") - 1 == kval_len && !strncmp(kval, "index", kval_len)) {
+			index = vval;
+		}
+	}
+
+	AN(name);
+	AN(ctype);
+	AN(oneliner);
+	AN(docs);
+	AN(type);
+	AN(format);
+	AN(level);
+	AN(index);
 
 	VSB_clear(vsb);
-	VSB_printf(vsb, "%s.%s", seg->fantom->ident, vt->value);
+	VSB_printf(vsb, "%s.%.*s", seg->fantom->ident, (int)name_len, name);
 	AZ(VSB_finish(vsb));
 
 	if (vsc_filter(vsc, VSB_data(vsb)))
@@ -263,64 +332,40 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	AN(point->name);
 	point->point.name = point->name;
 
-#define DOF(n, k)				\
-	vt = vjsn_child(vv, k);			\
-	AN(vt);					\
-	assert(vjsn_is_string(vt));		\
-	point->point.n = vt->value;
+	point->point.ctype = strndup(ctype, ctype_len);
+	point->point.sdesc = strndup(oneliner,  oneliner_len);
+	point->point.ldesc = strndup(docs, docs_len);
 
-	DOF(ctype, "ctype");
-	DOF(sdesc, "oneliner");
-	DOF(ldesc, "docs");
-#undef DOF
-	vt = vjsn_child(vv, "type");
-	AN(vt);
-	assert(vjsn_is_string(vt));
-
-	if (!strcmp(vt->value, "counter")) {
+	if (sizeof("counter") - 1 == type_len && !strncmp(type, "counter", type_len))
 		point->point.semantics = 'c';
-	} else if (!strcmp(vt->value, "gauge")) {
+	else if (sizeof("gauge") - 1 == type_len && !strncmp(type, "gauge", type_len))
 		point->point.semantics = 'g';
-	} else if (!strcmp(vt->value, "bitmap")) {
+	else if (sizeof("bitmap") - 1 == type_len && !strncmp(type, "bitmap", type_len))
 		point->point.semantics = 'b';
-	} else {
+	else
 		point->point.semantics = '?';
-	}
 
-	vt = vjsn_child(vv, "format");
-	AN(vt);
-	assert(vjsn_is_string(vt));
-
-	if (!strcmp(vt->value, "integer")) {
+	if (sizeof("integer") - 1 == format_len && !strncmp("integer", format, format_len))
 		point->point.format = 'i';
-	} else if (!strcmp(vt->value, "bytes")) {
+	else if (sizeof("bytes") - 1 == format_len && !strncmp("bytes", format, format_len))
 		point->point.format = 'B';
-	} else if (!strcmp(vt->value, "bitmap")) {
+	else if (sizeof("bitmap") - 1 == format_len && !strncmp("bitmap", format, format_len))
 		point->point.format = 'b';
-	} else if (!strcmp(vt->value, "duration")) {
+	else if (sizeof("duration") - 1 == format_len && !strncmp("duration", format, format_len))
 		point->point.format = 'd';
-	} else {
+	else
 		point->point.format = '?';
-	}
 
-	vt = vjsn_child(vv, "level");
-	AN(vt);
-	assert(vjsn_is_string(vt));
-
-	if (!strcmp(vt->value, "info"))  {
+	if (sizeof("info") - 1 == level_len && !strncmp(level, "info", level_len))
 		point->point.level = &levels[info];
-	} else if (!strcmp(vt->value, "diag")) {
+	else if (sizeof("diag") - 1 == level_len && !strncmp(level, "diag", level_len))
 		point->point.level = &levels[diag];
-	} else if (!strcmp(vt->value, "debug")) {
+	else if (sizeof("debug") - 1 == level_len && !strncmp(level, "debug", level_len))
 		point->point.level = &levels[debug];
-	} else {
+	else
 		WRONG("Illegal level");
-	}
 
-	vt = vjsn_child(vv, "index");
-	AN(vt);
-
-	point->point.ptr = (volatile const void*)(seg->body + atoi(vt->value));
+	point->point.ptr = (volatile void*)(seg->body + atoi(index));
 	point->point.raw = vsc->raw;
 }
 
