@@ -46,7 +46,6 @@
 #include "miniobj.h"
 #include "vqueue.h"
 #include "vbor.h"
-#include "vjsn.h"
 #include "vsb.h"
 #include "vsc_priv.h"
 
@@ -260,12 +259,13 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	size_t format_len = 0;
 	const char *level = NULL;
 	size_t level_len = 0;
-	const char *index = NULL;
+	uint64_t index = -1;
 
 	const char *kval = NULL;
 	size_t kval_len = 0;
 	const char *vval = NULL;
 	size_t vval_len = 0;
+	uint64_t uval = -1;
 
 	CHECK_OBJ_NOTNULL(vsc, VSC_MAGIC);
 	memset(point, 0, sizeof *point);
@@ -277,8 +277,16 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	for (size_t i = 0; i < map_len; i++) {
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &kval, &kval_len));
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-		assert(!VBOR_GetString(&next, &vval, &vval_len));
+		switch (VBOC_Next(&vboc, &next)) {
+			case VBOR_TEXT_STRING:
+				assert(!VBOR_GetString(&next, &vval, &vval_len));
+				break;
+			case VBOR_UINT:
+				assert(!VBOR_GetUInt(&next, &uval));
+				break;
+			default:
+				WRONG("Invalid JSON type here");
+		}
 		if (sizeof("name") - 1 == kval_len && !strncmp(kval, "name", kval_len)) {
 			name = vval;
 			name_len = vval_len;
@@ -308,7 +316,7 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 			level_len = vval_len;
 		}
 		else if (sizeof("index") - 1 == kval_len && !strncmp(kval, "index", kval_len)) {
-			index = vval;
+			index = uval;
 		}
 	}
 
@@ -319,7 +327,7 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	AN(type);
 	AN(format);
 	AN(level);
-	AN(index);
+	assert(index != -1);
 
 	VSB_clear(vsb);
 	VSB_printf(vsb, "%s.%.*s", seg->fantom->ident, (int)name_len, name);
@@ -365,7 +373,7 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	else
 		WRONG("Illegal level");
 
-	point->point.ptr = (volatile void*)(seg->body + atoi(index));
+	point->point.ptr = (volatile void*)(seg->body + index);
 	point->point.raw = vsc->raw;
 }
 
@@ -380,9 +388,9 @@ vsc_del_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg **spp)
 	AN(vsm);
 	TAKE_OBJ_NOTNULL(sp, spp, VSC_SEG_MAGIC);
 	AZ(VSM_Unmap(vsm, sp->fantom));
-	if (sp->vb != NULL) {
+	if (sp->vb != NULL)
 		VBOR_Destroy(&sp->vb);
-	} else {
+	else {
 		pp = sp->points;
 		for (u = 0; u < sp->npoints; u++, pp++)
 			vsc_clean_point(pp);
@@ -425,11 +433,11 @@ vsc_unmap_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		free(sp->points);
 		sp->points = NULL;
 		sp->npoints = 0;
-		AZ(sp->vj);
+		AZ(sp->vb);
 	} else if (sp->type == VSC_SEG_DOCS) {
-		if (sp->vj != NULL)
-			vjsn_delete(&sp->vj);
-		AZ(sp->vj);
+		if (sp->vb != NULL)
+			VBOR_Destroy(&sp->vb);
+		AZ(sp->vb);
 		AZ(sp->points);
 	} else {
 		WRONG("Invalid segment type");
@@ -444,13 +452,17 @@ vsc_unmap_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 static int
 vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 {
+	struct vboc vboc;
+	struct vbor next, elem;
 	const struct vsc_head *head;
 	struct vsc_seg *spd;
-	const char *e;
-	struct vjsn_val *vv, *vve;
 	struct vsb *vsb;
 	struct vsc_pt *pp;
 	int retry;
+	const char *val = NULL;
+	size_t map_len = 0;
+	size_t val_len = 0;
+	size_t elements_nb = 0;
 
 	CHECK_OBJ_NOTNULL(vsc, VSC_MAGIC);
 	AN(vsm);
@@ -484,9 +496,13 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 
 	if (sp->type == VSC_SEG_DOCS) {
 		/* Parse the DOCS json */
-		sp->vj = vjsn_parse(sp->body, &e);
-		XXXAZ(e);
-		AN(sp->vj);
+		struct vbob *vbob = VBOB_Alloc(10);
+		AN(vbob);
+		assert(!VBOB_ParseJSON(vbob, sp->body));
+		ALLOC_OBJ(sp->vb, VBOR_MAGIC);
+		assert(!VBOB_Finish(vbob, sp->vb));
+		sp->vb->flags |= VBOR_ALLOCATED;
+		VBOB_Destroy(&vbob);
 		return (0);
 	}
 
@@ -512,19 +528,61 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		return (-1);
 	}
 
+	VBOC_Init(&vboc, spd->vb);
+	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
+	assert(!VBOR_GetMapSize(&next, &map_len));
+	for (size_t i = 0; i < map_len; i++) {
+		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		assert(VBOC_Next(&vboc, &next) < VBOR_END);
+		if (sizeof("elements") - 1 == val_len && !strncmp(val, "elements", val_len)) {
+			assert(VBOR_What(&next) == VBOR_UINT);
+			assert(!VBOR_GetUInt(&next, &elements_nb));
+			sp->npoints = elements_nb;
+		}
+		else if (sizeof("elem") - 1 == val_len && !strncmp(val, "elem", val_len)) {
+			assert(VBOR_What(&next) == VBOR_MAP);
+			VBOR_Copy(&elem, &next);
+			elements_nb *= 2;
+			size_t len;
+			for (size_t j = 0; j < elements_nb; j++) {
+				assert(VBOC_Next(&vboc, &next) < VBOR_END);
+				switch (VBOR_What(&next)) {
+					case VBOR_MAP:
+						assert(!VBOR_GetMapSize(&next, &len));
+						elements_nb += len * 2;
+						break;
+					default:
+						break;
+				}
+			}
+		}
+	}
+
+
 	/* Create the VSC points list */
-	vve = vjsn_child(spd->vj->value, "elements");
-	AN(vve);
-	sp->npoints = strtoul(vve->value, NULL, 0);
+	assert(elements_nb != -1);
+	CHECK_OBJ_NOTNULL(&elem, VBOR_MAGIC);
+
 	sp->points = calloc(sp->npoints, sizeof *sp->points);
 	AN(sp->points);
 	vsb = VSB_new_auto();
 	AN(vsb);
-	vve = vjsn_child(spd->vj->value, "elem");
-	AN(vve);
+
 	pp = sp->points;
-	VTAILQ_FOREACH(vv, &vve->children, list) {
-		vsc_fill_point(vsc, sp, vv, vsb, pp);
+
+	elements_nb = sp->npoints;
+	VBOC_Init(&vboc, &elem);
+	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
+	for (size_t i = 0; i < elements_nb; i++) {
+		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
+		vsc_fill_point(vsc, sp, &next, vsb, pp);
+		assert(!VBOR_GetMapSize(&next, &map_len));
+		for (size_t i = 0; i < map_len; i++) {
+			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+			assert(VBOC_Next(&vboc, &next) < VBOR_END);
+		}
 		pp++;
 	}
 	VSB_destroy(&vsb);

@@ -919,7 +919,7 @@ int VBOB_Finish(struct vbob *vbob, struct vbor *vbor)
 	memcpy(data, VSB_data(vbob->vsb), data_len);
 	if (VBOR_Init(vbor, data, data_len, vbob->max_depth) == -1)
 		return -1;
-	vbor->flags = VBOR_OWNS_DATA;
+	vbor->flags |= VBOR_OWNS_DATA;
 	return 0;
 }
 
