@@ -170,7 +170,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	if (VBOC_Next(&vboc, &next) != VBOR_TEXT_STRING)
 		return "Not string[2]";
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	if (val_len != sizeof("$VMOD") - 1 || strncmp(val, "$VMOD", val_len) != 0)
+	if (val_len != sizeof("$VMOD") - 1 || !strncmp(val, "$VMOD", val_len))
 		return "Not $VMOD[3]";
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
@@ -406,7 +406,7 @@ vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
 		assert(!VBOR_GetArraySize(&next, &sub_size));
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
-		if (val_len == strlen(stanza) && strncmp(val, stanza, val_len) == 0) {
+		if (val_len == strlen(stanza) && !strncmp(val, stanza, val_len)) {
 			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 			sub_size--;
 			func(tl, vim, &next);
