@@ -244,7 +244,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 
 		unsigned valid_stanza = 0;
 #define STANZA(UU, ll, ss) \
-		if (!strncmp(val, "$" #UU, val_len)) {vim->n_##ll++; valid_stanza = 1;}
+		if (sizeof("$" #UU) - 1 == val_len && !strncmp(val, "$" #UU, val_len)) {vim->n_##ll++; valid_stanza = 1;}
 			STANZA_TBL
 #undef STANZA
 		if (!valid_stanza)

@@ -197,8 +197,8 @@ mgt_vcl_import_vmod(struct vclprog *vp, struct vbor *vbor_map, size_t map_size)
 	AN(v_file);
 	AN(v_dst);
 	VTAILQ_FOREACH(vf, &vmodhead, list)
-	if (!strcmp(vf->fname, v_dst))
-		break;
+		if (!strcmp(vf->fname, v_dst))
+			break;
 	if (vf == NULL)
 	{
 		ALLOC_OBJ(vf, VMODFILE_MAGIC);
@@ -230,7 +230,7 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 	vbob = VBOB_Alloc(10);
 	VBOB_ParseJSON(vbob, input);
 	if (VBOB_Finish(vbob, &vbor) == -1)
-		fprintf(stderr, "FATAL: Symtab parse error\n");
+		WRONG("FATAL: Symtab parse error\n");
 	VBOB_Destroy(&vbob);
 	CHECK_OBJ_NOTNULL(&vbor, VBOR_MAGIC);
 	ALLOC_OBJ(vp->symtab, VBOR_MAGIC);
@@ -332,7 +332,6 @@ mcf_vcl_vbor_dump_map(struct cli *cli, struct vboc *vboc, int indent)
 					VCLI_Out(cli, "{number} <%lu>", uval);
 					break;
 				default:
-					// xxx: check if its accurate
 					WRONG("Bad vbor type");
 			}
 			VCLI_Out(cli, "\n");

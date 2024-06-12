@@ -344,7 +344,8 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
 	return 0;
 }
 
-void VBOR_Destroy(struct vbor **vbor)
+void
+VBOR_Destroy(struct vbor **vbor)
 {
 	CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
 	assert((*vbor)->flags & VBOR_ALLOCATED);
@@ -356,7 +357,8 @@ void VBOR_Destroy(struct vbor **vbor)
 	FREE_OBJ(*vbor);
 }
 
-void VBOR_Fini(struct vbor *vbor)
+void
+VBOR_Fini(struct vbor *vbor)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	assert(!(vbor->flags & VBOR_ALLOCATED));
@@ -647,7 +649,8 @@ VBOB_Alloc(unsigned max_depth)
 	return vbob;
 }
 
-void VBOB_Destroy(struct vbob **vbob)
+void
+VBOB_Destroy(struct vbob **vbob)
 {
 	AN(vbob);
 	CHECK_OBJ_NOTNULL(*vbob, VBOB_MAGIC);
@@ -713,7 +716,8 @@ VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
 	return VSB_bcat(vbob->vsb, hdr, written);
 }
 
-int VBOB_AddUInt(struct vbob *vbob, uint64_t value)
+int
+VBOB_AddUInt(struct vbob *vbob, uint64_t value)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -724,7 +728,8 @@ int VBOB_AddUInt(struct vbob *vbob, uint64_t value)
 	return vbob->err;
 }
 
-int VBOB_AddNegint(struct vbob *vbob, uint64_t value)
+int
+VBOB_AddNegint(struct vbob *vbob, uint64_t value)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -735,7 +740,8 @@ int VBOB_AddNegint(struct vbob *vbob, uint64_t value)
 	return vbob->err;
 }
 
-int VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
+int
+VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -748,7 +754,8 @@ int VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
 	return vbob->err;
 }
 
-int VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
+int
+VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -761,7 +768,8 @@ int VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
 	return vbob->err;
 }
 
-int VBOB_AddArray(struct vbob *vbob, size_t num_items)
+int
+VBOB_AddArray(struct vbob *vbob, size_t num_items)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -772,7 +780,8 @@ int VBOB_AddArray(struct vbob *vbob, size_t num_items)
 	return vbob->err;
 }
 
-int VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
+int
+VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -783,7 +792,8 @@ int VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
 	return vbob->err;
 }
 
-int VBOB_AddTag(struct vbob *vbob, uint64_t value)
+int
+VBOB_AddTag(struct vbob *vbob, uint64_t value)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -818,7 +828,8 @@ VBOB_AddHeaderFloat(struct vbob *vbob, char len)
 	return VSB_bcat(vbob->vsb, &hdr, 1);
 }
 
-int VBOB_AddSimple(struct vbob *vbob, uint8_t value)
+int
+VBOB_AddSimple(struct vbob *vbob, uint8_t value)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -839,22 +850,26 @@ int VBOB_AddSimple(struct vbob *vbob, uint8_t value)
 	return VSB_bcat(vbob->vsb, wr, 2);
 }
 
-int VBOB_AddBool(struct vbob *vbob, unsigned value)
+int
+VBOB_AddBool(struct vbob *vbob, unsigned value)
 {
 	return VBOB_AddSimple(vbob, value ? 21 : 20);
 }
 
-int VBOB_AddNull(struct vbob *vbob)
+int
+VBOB_AddNull(struct vbob *vbob)
 {
 	return VBOB_AddSimple(vbob, 22);
 }
 
-int VBOB_AddUndefined(struct vbob *vbob)
+int
+VBOB_AddUndefined(struct vbob *vbob)
 {
 	return VBOB_AddSimple(vbob, 23);
 }
 
-int VBOB_AddFloat(struct vbob *vbob, float value)
+int
+VBOB_AddFloat(struct vbob *vbob, float value)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -869,7 +884,8 @@ int VBOB_AddFloat(struct vbob *vbob, float value)
 	return VSB_bcat(vbob->vsb, &value, 4);
 }
 
-int VBOB_AddDouble(struct vbob *vbob, double value)
+int
+VBOB_AddDouble(struct vbob *vbob, double value)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	if (vbob->err)
@@ -884,7 +900,8 @@ int VBOB_AddDouble(struct vbob *vbob, double value)
 	return VSB_bcat(vbob->vsb, &value, 8);
 }
 
-int VBOB_Finish(struct vbob *vbob, struct vbor *vbor)
+int
+VBOB_Finish(struct vbob *vbob, struct vbor *vbor)
 {
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	AN(vbor);
@@ -1134,7 +1151,8 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 
 #include <stdio.h>
 
-int main(void)
+int
+main(void)
 {
 	struct vbob *vbob = VBOB_Alloc(10);
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
