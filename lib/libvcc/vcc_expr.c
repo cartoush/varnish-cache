@@ -508,8 +508,12 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 				VSB_printf(tl->sb, "\t%.*s\n", (int)val_len, val);
 			}
 			vcc_ErrWhere(tl, tl->t);
+			VBOC_Fini(&vboc);
+			VBOR_Fini(&next);
 			return;
 		}
+		VBOC_Fini(&vboc);
+		VBOR_Fini(&next);
 		vcc_do_enum(tl, fa, PF(tl->t));
 		SkipToken(tl, ID);
 	} else {
@@ -670,6 +674,8 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 			}
 		}
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 
 	VTAILQ_FOREACH(fa, &head, list) {
 		if (tl->t->tok == ')')

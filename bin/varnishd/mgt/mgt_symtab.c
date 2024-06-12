@@ -81,6 +81,8 @@ mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map, size_t map_size)
 	ALLOC_OBJ(res, VBOR_MAGIC);
 	VBOR_Copy(res, vbor_map);
 	mgt_vcl_dep_add(vp1, vp2)->vb = res;
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 static int
@@ -188,6 +190,9 @@ mgt_vcl_import_vmod(struct vclprog *vp, struct vbor *vbor_map, size_t map_size)
 			}
 		}
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
+
 	AN(v_name);
 	AN(v_file);
 	AN(v_dst);
@@ -239,7 +244,7 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 		struct vbor map_begin;
 		const char *dir_val = NULL;
 		size_t dir_val_len = 0;
-		const char *type_val = NULL;AN(vp->symtab);
+		const char *type_val = NULL;
 		size_t type_val_len = 0;
 
 		assert(VBOR_What(&next) == VBOR_MAP);
@@ -276,6 +281,8 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 		else
 			WRONG("Bad symtab import entry");
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 void
@@ -357,6 +364,8 @@ mcf_vcl_vbor_dump(struct cli *cli, const struct vbor *vbor, int indent)
 		assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
 		mcf_vcl_vbor_dump_map(cli, &vboc, indent + 2);
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 void v_matchproto_(cli_func_t)

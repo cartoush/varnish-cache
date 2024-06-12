@@ -262,6 +262,8 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 			}
 		}
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 
 	if (vim->n_cproto != 1)
 		return ("Bad cproto stanza(s)");
@@ -379,6 +381,8 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 		Fh(tl, 0, "%s\n", cproto);
 	}
 	free(cproto);
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 static void
@@ -418,9 +422,10 @@ vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
 				assert(!VBOR_GetMapSize(&next, &s));
 				sub_size += 2 * s;
 			}
-			// assert(VBOC_Next(&vboc, &next) < VBOR_END);
 		}
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 static void

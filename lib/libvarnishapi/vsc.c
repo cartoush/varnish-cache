@@ -319,6 +319,8 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 			index = uval;
 		}
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 
 	AN(name);
 	AN(ctype);
@@ -586,6 +588,8 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		pp++;
 	}
 	VSB_destroy(&vsb);
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 	return (0);
 }
 

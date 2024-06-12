@@ -32,7 +32,6 @@
 
 #include <ctype.h>
 #include <math.h>
-#include <stdio.h>
 #include <string.h>
 
 #include "vdef.h"
@@ -622,6 +621,7 @@ VBOR_GetByteSize(struct vbor *vbor, size_t *len)
 			*len += val_len * 2;
 	}
 	*len = acc;
+	VBOC_Fini(&vboc);
 	return 0;
 }
 
@@ -1132,6 +1132,8 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 
 #ifdef VBOR_TEST
 
+#include <stdio.h>
+
 int main(void)
 {
 	struct vbob *vbob = VBOB_Alloc(10);
@@ -1206,6 +1208,7 @@ int main(void)
 	assert(VBOR_GetByteString(&next, &bdata, &len) == 0);
 	assert(memcmp(bdata, "world", 5) == 0);
 	assert(len == 5);
+	VBOC_Fini(&vboc);
 
 	struct vsb *vsb = VSB_new_auto();
 	VBOR_PrintJSON(&vbor, vsb, 1);
@@ -1411,7 +1414,7 @@ int main(void)
 		i++;
 	}
 	printf("\n");
-
+	VBOC_Fini(&vboc);
 	VBOR_Fini(&vbor);
 
 	vbob = VBOB_Alloc(1);

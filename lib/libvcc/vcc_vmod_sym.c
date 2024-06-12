@@ -102,6 +102,9 @@ alias_sym(struct vcc *tl, const struct symbol *psym, const struct vbor *v)
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
+
 	VSB_clear(buf);
 	VCC_SymName(buf, psym);
 	VSB_printf(buf, ".%.*s", (int)val_len, val);
@@ -161,6 +164,8 @@ func_restrict(struct vcc *tl, struct symbol *sym, vcc_kind_t kind, const struct 
 		}
 		sym->r_methods |= s;
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 static void
@@ -206,6 +211,8 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 		sym->r_methods = VCL_MET_INIT;
 		vcc_VmodObject(tl, sym);
 		vcc_VmodSymbols(tl, sym, arr_len);
+		VBOC_Fini(&vboc);
+		VBOR_Fini(&next);
 		return;
 	}
 
@@ -226,6 +233,8 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 	AN(sym->type);
 	sym->r_methods = VCL_MET_TASK_ALL;
 	func_restrict(tl, sym, kind, vv);
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 void
@@ -321,6 +330,8 @@ vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym, unsigned ll)
 			ERRCHK(tl);
 		}
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 void v_matchproto_(sym_act_f)
