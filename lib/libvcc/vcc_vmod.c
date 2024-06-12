@@ -160,7 +160,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 			return jsn_parse_str[json_parse_res];
 		return NULL;
 	}
-	vim->vb->flags = VBOR_ALLOCATED | VBOR_OWNS_DATA;
+	vim->vb->flags |= VBOR_ALLOCATED;
 
 	VBOC_Init(&vboc, vim->vb);
 	if (VBOC_Next(&vboc, &next) != VBOR_ARRAY)

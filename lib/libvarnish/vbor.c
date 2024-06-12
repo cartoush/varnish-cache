@@ -176,29 +176,6 @@ VBOR_DecodeValueLength(enum vbor_major_type type, enum vbor_argument arg, const 
 	return len;
 }
 
-struct vbor *
-VBOR_Alloc(const uint8_t *data, size_t len, unsigned max_depth)
-{
-	struct vbor *vbor;
-	AN(data);
-	AN(len);
-	ALLOC_OBJ(vbor, VBOR_MAGIC);
-	vbor->data = malloc(len);
-	AN(vbor->data);
-	memcpy((void *)vbor->data, data, len);
-	vbor->len = len;
-	vbor->max_depth = max_depth;
-	vbor->flags = VBOR_ALLOCATED | VBOR_OWNS_DATA;
-	return vbor;
-}
-
-struct vbor *
-VBOR_Clone(const struct vbor *vbor)
-{
-	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	return VBOR_Alloc(vbor->data, vbor->len, vbor->max_depth);
-}
-
 int
 VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth)
 {
@@ -324,6 +301,7 @@ VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty)
 			VSB_printf(json, "undefined");
 			break;
 		default:
+			WRONG("Invalid VBOR type here");
 			break;
 		}
 		if (type != VBOR_ARRAY && type != VBOR_MAP && depth != (size_t)-1)
@@ -938,7 +916,7 @@ get_str_end(const char *str)
 	while (*str != '\0') {
 		if (!escaped && *str == '"')
 			break;
-		if (*str == '\\' && !escaped)
+		if (*str == '\\')
 			escaped = 1;
 		else
 			escaped = 0;
@@ -1128,10 +1106,10 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 	unsigned sub_depth;
 
 	if (vboc->current->magic == 0) {
-		if (VBOR_Init(&vboc->current[0], vboc->src->data, vboc->src->len, vbor->max_depth) == VBOR_ERROR)
+		if (VBOR_Copy(&vboc->current[0], vboc->src))
 			return VBOR_ERROR;
-		if (vbor)
-			memcpy(vbor, &vboc->current[0], sizeof(*vbor));
+		if (VBOR_Copy(vbor, &vboc->current[0]))
+			return VBOR_ERROR;
 		return VBOR_What(vboc->current);
 	}
 	if (vboc->current->len <= 0)
