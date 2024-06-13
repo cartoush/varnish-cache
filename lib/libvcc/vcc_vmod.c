@@ -648,7 +648,7 @@ vcc_ParseImport(struct vcc *tl)
 			msym->eval_priv = vsym->eval_priv;
 			msym->import = vsym->import;
 			msym->vmod_name = vsym->vmod_name;
-			vcc_VmodSymbols(tl, msym, -1);
+			vcc_VmodSymbols(tl, msym);
 			AZ(tl->err);
 			// XXX: insert msym in sideways ?
 			vcc_vim_destroy(&vim);
@@ -661,7 +661,7 @@ vcc_ParseImport(struct vcc *tl)
 	msym->eval_priv = vim->vb;
 	msym->import = vim;
 	msym->vmod_name = TlDup(tl, vim->name);
-	vcc_VmodSymbols(tl, msym, -1);
+	vcc_VmodSymbols(tl, msym);
 	ERRCHK(tl);
 
 	vcc_emit_setup(tl, vim);

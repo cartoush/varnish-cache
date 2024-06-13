@@ -169,6 +169,9 @@ func_restrict(struct vcc *tl, struct symbol *sym, vcc_kind_t kind, const struct 
 }
 
 static void
+vcc_VmodSymbols_sub(struct vcc *tl, const struct symbol *sym, unsigned ll);
+
+static void
 func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
     const struct vbor *v, const struct vbor *vv, size_t arr_len)
 {
@@ -210,7 +213,7 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 		sym->vmod_name = psym->vmod_name;
 		sym->r_methods = VCL_MET_INIT;
 		vcc_VmodObject(tl, sym);
-		vcc_VmodSymbols(tl, sym, arr_len);
+		vcc_VmodSymbols_sub(tl, sym, arr_len);
 		VBOC_Fini(&vboc);
 		VBOR_Fini(&next);
 		return;
@@ -237,8 +240,8 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 	VBOR_Fini(&next);
 }
 
-void
-vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym, unsigned ll)
+static void
+vcc_VmodSymbols_sub(struct vcc *tl, const struct symbol *sym, unsigned ll)
 {
 	const struct vbor *vbor;
 	struct vboc vboc;
@@ -332,6 +335,12 @@ vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym, unsigned ll)
 	}
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
+}
+
+void
+vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym)
+{
+	vcc_VmodSymbols_sub(tl, sym, -1);
 }
 
 void v_matchproto_(sym_act_f)
