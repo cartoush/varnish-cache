@@ -291,7 +291,7 @@ command_generator(const char *text, int state)
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
 	VBOR_Fini(&cmds);
-	return NULL;
+	return (NULL);
 }
 
 static char **

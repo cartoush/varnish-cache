@@ -215,7 +215,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 		VSB_printf(tl->sb, "Incompatible VMOD %.*s\n", PF(vim->t_mod));
 		VSB_printf(tl->sb, "\tFile name: %s\n", vim->path);
 		VSB_printf(tl->sb, "\tABI mismatch, expected <%s>, got <%s>\n",
-			VMOD_ABI_Version, vim->abi);
+		    VMOD_ABI_Version, vim->abi);
 		return ("");
 	}
 	if (vim->major != 0 &&
@@ -269,7 +269,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 		return ("Bad cproto stanza(s)");
 	if (vim->n_vmod != 1)
 		return ("Bad vmod stanza(s)");
-	return NULL;
+	return (NULL);
 }
 
 /*
