@@ -728,17 +728,17 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 
 	if (sa != NULL)
 		e1 = vcc_mk_expr(rfmt, "%s(ctx%s%s,\v+\n&(%s)\v+ {\n",
-			cfunc, extra_sep, extra, sa);
+		    cfunc, extra_sep, extra, sa);
 	else
 		e1 = vcc_mk_expr(rfmt, "%s(ctx%s%s\v+",
-			cfunc, extra_sep, extra);
+		    cfunc, extra_sep, extra);
 	n = 0;
 	VTAILQ_FOREACH_SAFE(fa, &head, list, fa2) {
 		n++;
 		if (fa->optional) {
 			AN(fa->name);
 			bprintf(ssa, "\v1.valid_%s = %d,\n",
-				fa->name, fa->avail);
+			    fa->name, fa->avail);
 			e1 = vcc_expr_edit(tl, e1->fmt, ssa, e1, NULL);
 		}
 		if (fa->result == NULL && fa->type == ENUM && fa->val != NULL)
@@ -753,11 +753,11 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 			e1 = vcc_expr_edit(tl, e1->fmt, ssa, e1, fa->result);
 		} else if (fa->result != NULL) {
 			e1 = vcc_expr_edit(tl, e1->fmt, "\v1,\n\v2",
-				e1, fa->result);
+			    e1, fa->result);
 		} else if (!fa->optional) {
 			if (fa->name)
 				VSB_printf(tl->sb, "Argument '%s' missing\n",
-					fa->name);
+				    fa->name);
 			else
 				VSB_printf(tl->sb, "Argument %d missing\n", n);
 			vcc_ErrWhere(tl, tl->t);

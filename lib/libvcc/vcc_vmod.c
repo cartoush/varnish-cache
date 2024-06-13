@@ -170,7 +170,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	if (VBOC_Next(&vboc, &next) != VBOR_TEXT_STRING)
 		return "Not string[2]";
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	if (val_len != sizeof("$VMOD") - 1 || !strncmp(val, "$VMOD", val_len))
+	if (val_len != sizeof("$VMOD") - 1 || strncmp(val, "$VMOD", val_len))
 		return "Not $VMOD[3]";
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
@@ -211,7 +211,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	free((void*)val);
 
 	if (vim->major == 0 && vim->minor == 0 &&
-		strcmp(vim->abi, VMOD_ABI_Version)) {
+	    strcmp(vim->abi, VMOD_ABI_Version)) {
 		VSB_printf(tl->sb, "Incompatible VMOD %.*s\n", PF(vim->t_mod));
 		VSB_printf(tl->sb, "\tFile name: %s\n", vim->path);
 		VSB_printf(tl->sb, "\tABI mismatch, expected <%s>, got <%s>\n",
@@ -219,14 +219,14 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 		return ("");
 	}
 	if (vim->major != 0 &&
-		(vim->major != VRT_MAJOR_VERSION ||
-		vim->minor > VRT_MINOR_VERSION)) {
+	    (vim->major != VRT_MAJOR_VERSION ||
+	    vim->minor > VRT_MINOR_VERSION)) {
 		VSB_printf(tl->sb, "Incompatible VMOD %.*s\n", PF(vim->t_mod));
 		VSB_printf(tl->sb, "\tFile name: %s\n", vim->path);
 		VSB_printf(tl->sb, "\tVMOD wants ABI version %u.%u\n",
-			vim->major, vim->minor);
+		    vim->major, vim->minor);
 		VSB_printf(tl->sb, "\tvarnishd provides ABI version %u.%u\n",
-			VRT_MAJOR_VERSION, VRT_MINOR_VERSION);
+		    VRT_MAJOR_VERSION, VRT_MINOR_VERSION);
 		return ("");
 	}
 
@@ -303,8 +303,8 @@ vcc_VmodLoad(struct vcc *tl, struct vmod_import *vim)
 			return (0);
 		}
 		VSB_printf(tl->sb,
-			"Different version of VMOD %.*s already loaded\n",
-			PF(vim->t_mod));
+		    "Different version of VMOD %.*s already loaded\n",
+		    PF(vim->t_mod));
 		vcc_ErrWhere(tl, vim->t_mod);
 		VSB_cat(tl->sb, "Previous import at:\n");
 		vcc_ErrWhere(tl, vim2->t_mod);
@@ -318,7 +318,7 @@ vcc_VmodLoad(struct vcc *tl, struct vmod_import *vim)
 
 static void v_matchproto_(vcc_do_stanza_f)
 vcc_do_event(struct vcc *tl, const struct vmod_import *vim,
-	const struct vbor *vb)
+    const struct vbor *vb)
 {
 	struct inifin *ifp;
 	const char *val = NULL;
@@ -329,20 +329,20 @@ vcc_do_event(struct vcc *tl, const struct vmod_import *vim,
 
 	ifp = New_IniFin(tl);
 	VSB_printf(ifp->ini,
-		"\tif (%.*s(ctx, &vmod_priv_%s, VCL_EVENT_LOAD))\n"
-		"\t\treturn(1);",
-		(int)val_len, val, vim->sym->vmod_name);
+	    "\tif (%.*s(ctx, &vmod_priv_%s, VCL_EVENT_LOAD))\n"
+	    "\t\treturn(1);",
+	    (int)val_len, val, vim->sym->vmod_name);
 	VSB_printf(ifp->fin,
-		"\t\t(void)%.*s(ctx, &vmod_priv_%s,\n"
-		"\t\t\t    VCL_EVENT_DISCARD);",
-		(int)val_len, val, vim->sym->vmod_name);
+	    "\t\t(void)%.*s(ctx, &vmod_priv_%s,\n"
+	    "\t\t\t    VCL_EVENT_DISCARD);",
+	    (int)val_len, val, vim->sym->vmod_name);
 	VSB_printf(ifp->event, "%.*s(ctx, &vmod_priv_%s, ev)",
-		(int)val_len, val, vim->sym->vmod_name);
+	    (int)val_len, val, vim->sym->vmod_name);
 }
 
 static void v_matchproto_(vcc_do_stanza_f)
 vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
-	const struct vbor *vb)
+    const struct vbor *vb)
 {
 	struct vbor next;
 	struct vboc vboc;
@@ -387,7 +387,7 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 
 static void
 vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
-	const char *stanza, vcc_do_stanza_f *func)
+    const char *stanza, vcc_do_stanza_f *func)
 {
 	struct vbor next;
 	struct vboc vboc;
@@ -452,7 +452,7 @@ vcc_emit_setup(struct vcc *tl, const struct vmod_import *vim)
 		VSB_cat(ifp->ini, "\n");
 	} else {
 		VSB_printf(ifp->ini, "\t    \"./vmod_cache/_vmod_%.*s.%s\"\n",
-			PF(mod), vim->file_id);
+		    PF(mod), vim->file_id);
 	}
 	VSB_cat(ifp->ini, "\t    ))\n");
 	VSB_cat(ifp->ini, "\t\treturn(1);");
@@ -467,14 +467,14 @@ vcc_emit_setup(struct vcc *tl, const struct vmod_import *vim)
 		VSB_cat(tl->symtab, "\t\"vext\": false,\n");
 	VSB_printf(tl->symtab, "\t\"file\": \"%s\",\n", vim->path);
 	VSB_printf(tl->symtab, "\t\"dst\": \"./vmod_cache/_vmod_%.*s.%s\"\n",
-		PF(mod), vim->file_id);
+	    PF(mod), vim->file_id);
 	VSB_cat(tl->symtab, "    }");
 
 	/* XXX: zero the function pointer structure ?*/
 	VSB_printf(ifp->fin, "\t\tVRT_priv_fini(ctx, &vmod_priv_%.*s);",
-		PF(mod));
+	    PF(mod));
 	VSB_printf(ifp->final, "\t\tVPI_Vmod_Unload(ctx, &VGC_vmod_%.*s);",
-		PF(mod));
+	    PF(mod));
 
 	vcc_vb_foreach(tl, vim, "$EVENT", vcc_do_event);
 
