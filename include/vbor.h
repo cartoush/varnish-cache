@@ -75,7 +75,7 @@ int		VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_
 int		VBOR_Copy(struct vbor *dst, const struct vbor *src);
 void		VBOR_Fini(struct vbor *vbor);
 
-int		VBOR_PrintJSON(struct vbor *vbor, struct vsb *json, unsigned pretty);
+int		VBOR_PrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty);
 
 int	VBOR_GetUInt(const struct vbor *vbor, uint64_t *res);
 int	VBOR_GetNegint(const struct vbor *vbor, uint64_t *res);
@@ -92,6 +92,8 @@ int	VBOR_GetDouble(const struct vbor *vbor, double *res);
 int	VBOR_GetByteSize(struct vbor *vbor, size_t *len);
 
 enum vbor_major_type	VBOR_What(const struct vbor *vbor);
+
+int VBOR_Inside(const struct vbor *vbor, struct vbor *inside);
 
 enum vbor_json_parse_status {
 	JSON_PARSE_OK = 0,
