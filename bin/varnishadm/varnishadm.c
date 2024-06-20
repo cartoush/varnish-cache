@@ -262,8 +262,9 @@ command_generator(const char *text, int state)
 		free(answer);
 		if (u)
 			return (NULL);
-		VBOC_Init(&vboc, &cmds);
-		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+		assert(VBOR_What(&cmds) == VBOR_ARRAY);
+		assert(VBOR_Inside(&next, &cmds));
+		VBOC_Init(&vboc, &next);
 		assert(VBOC_Next(&vboc, &next) == VBOR_UINT);
 		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
@@ -271,22 +272,21 @@ command_generator(const char *text, int state)
 		assert(VBOC_Next(&vboc, &next) == VBOR_DOUBLE);
 	}
 	while (VBOC_Next(&vboc, &next) == VBOR_MAP) {
-		size_t map_size;
-		assert(VBOR_GetMapSize(&next, &map_size) == 0);
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		struct vboc vboc2;
 		const char *str;
 		size_t str_len;
+
+		assert(!VBOR_Inside(&next, &next));
+		assert(!VBOC_Init(&vboc2, &next));
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(VBOR_GetString(&next, &str, &str_len) == 0);
 		assert(str_len >= sizeof("request") - 1);
 		assert(!strncmp(str, "request", sizeof("request") - 1));
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(VBOR_GetString(&next, &str, &str_len) == 0);
-		int cmpres = strncmp(text, str, strlen(text));
-		map_size = (map_size - 1) * 2;
-		while (map_size > 0 && VBOC_Next(&vboc, &next) < VBOR_END)
-			map_size--;
-		if (!cmpres)
+		if (strlen(str) == strlen(text) && !strncmp(text, str, strlen(text)))
 			return strndup(str, str_len);
+		VBOC_Fini(&vboc2);
 	}
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
