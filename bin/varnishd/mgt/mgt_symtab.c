@@ -48,7 +48,7 @@
 /*--------------------------------------------------------------------*/
 
 static void
-mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map, size_t map_size)
+mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map)
 {
 	struct vclprog *vp2 = NULL;
 	struct vboc vboc;
@@ -60,21 +60,17 @@ mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map, size_t map_size)
 	CHECK_OBJ_NOTNULL(vp1, VCLPROG_MAGIC);
 	CHECK_OBJ_NOTNULL(vbor_map, VBOR_MAGIC);
 
-	VBOC_Init(&vboc, vbor_map);
-	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
-	for (size_t ctr = 0; ctr < map_size; ctr++) {
+	assert(VBOR_What(vbor_map) == VBOR_MAP);
+	assert(!VBOR_Inside(vbor_map, &next));
+	assert(VBOC_Init(&vboc, &next));
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(!VBOR_GetString(&next, &name, &name_len));
 		assert(VBOC_Next(&vboc, &next) < VBOR_END);
-		if (ctr % 2 == 0) {
-			assert(VBOR_What(&next) == VBOR_TEXT_STRING);
-			assert(VBOR_GetString(&next, &name, &name_len) == 0);
-			if (name_len == sizeof("name") - 1 && !strncmp(name, "name", name_len)) {
-				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-				ctr++;
-				assert(VBOR_GetString(&next, &name, &name_len) == 0);
-				name = strndup(name, name_len);
-				vp2 = mcf_vcl_byname(name);
-				free((void*)name);
-			}
+		if (name_len == sizeof("name") - 1 && !strncmp(name, "name", name_len)) {
+			assert(!VBOR_GetString(&next, &name, &name_len));
+			name = strndup(name, name_len);
+			vp2 = mcf_vcl_byname(name);
+			free((void*)name);
 		}
 	}
 	CHECK_OBJ_NOTNULL(vp2, VCLPROG_MAGIC);
@@ -128,7 +124,7 @@ mgt_vcl_cache_vmod(const char *nm, const char *fm, const char *to)
 }
 
 static void
-mgt_vcl_import_vmod(struct vclprog *vp, struct vbor *vbor_map, size_t map_size)
+mgt_vcl_import_vmod(struct vclprog *vp, struct vbor *vbor_map)
 {
 	struct vmodfile *vf;
 	struct vmoddep *vd;
@@ -141,53 +137,44 @@ mgt_vcl_import_vmod(struct vclprog *vp, struct vbor *vbor_map, size_t map_size)
 
 	CHECK_OBJ_NOTNULL(vp, VCLPROG_MAGIC);
 	CHECK_OBJ_NOTNULL(vbor_map, VBOR_MAGIC);
+
+	assert(VBOR_What(vbor_map) == VBOR_MAP);
+	assert(!VBOR_Inside(vbor_map, &next));
 	VBOC_Init(&vboc, vbor_map);
-	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
-	for (size_t ctr = 0; ctr < map_size; ctr++) {
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		const char *val;
 		size_t val_len;
 
+		assert(VBOR_What(&next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
 		assert(VBOC_Next(&vboc, &next) < VBOR_END);
-		if (ctr % 2 == 0)
+		if (val_len == sizeof("vext") - 1 && !strncmp(val, "vext", val_len))
 		{
-			assert(VBOR_What(&next) == VBOR_TEXT_STRING);
-			assert(VBOR_GetString(&next, &val, &val_len) == 0);
-			if (val_len == sizeof("vext") - 1 && !strncmp(val, "vext", val_len))
-			{
-				assert(VBOC_Next(&vboc, &next) == VBOR_BOOL);
-				ctr++;
-				assert(VBOR_GetBool(&next, &res) == 0);
-				if (res) {
-					if (v_name)
-						free(v_name);
-					if (v_file)
-						free(v_file);
-					if (v_dst)
-						free(v_dst);
-					return;
-				}
+			assert(!VBOR_GetBool(&next, &res));
+			if (res) {
+				if (v_name)
+					free(v_name);
+				if (v_file)
+					free(v_file);
+				if (v_dst)
+					free(v_dst);
+				return;
 			}
-			else if (val_len == sizeof("name") - 1 && !strncmp(val, "name", val_len))
-			{
-				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-				ctr++;
-				assert(VBOR_GetString(&next, &val, &val_len) == 0);
-				v_name = strndup(val, val_len);
-			}
-			else if (val_len == sizeof("file") - 1 && !strncmp(val, "file", val_len))
-			{
-				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-				ctr++;
-				assert(VBOR_GetString(&next, &val, &val_len) == 0);
-				v_file = strndup(val, val_len);
-			}
-			else if (val_len == sizeof("dst") - 1 && !strncmp(val, "dst", val_len))
-			{
-				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-				ctr++;
-				assert(VBOR_GetString(&next, &val, &val_len) == 0);
-				v_dst = strndup(val, val_len);
-			}
+		}
+		else if (val_len == sizeof("name") - 1 && !strncmp(val, "name", val_len))
+		{
+			assert(!VBOR_GetString(&next, &val, &val_len));
+			v_name = strndup(val, val_len);
+		}
+		else if (val_len == sizeof("file") - 1 && !strncmp(val, "file", val_len))
+		{
+			assert(!VBOR_GetString(&next, &val, &val_len));
+			v_file = strndup(val, val_len);
+		}
+		else if (val_len == sizeof("dst") - 1 && !strncmp(val, "dst", val_len))
+		{
+			assert(!VBOR_GetString(&next, &val, &val_len));
+			v_dst = strndup(val, val_len);
 		}
 	}
 	VBOC_Fini(&vboc);
@@ -275,9 +262,9 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 			continue;
 		AN(type_val);
 		if (type_val_len == sizeof("$VMOD") - 1 && !strncmp("$VMOD", type_val, type_val_len))
-			mgt_vcl_import_vmod(vp, &map_begin, map_size);
+			mgt_vcl_import_vmod(vp, &map_begin);
 		else if (type_val_len == sizeof("$VCL") - 1 && !strncmp("$VCL", type_val, type_val_len))
-			mgt_vcl_import_vcl(vp, &map_begin, map_size);
+			mgt_vcl_import_vcl(vp, &map_begin);
 		else
 			WRONG("Bad symtab import entry");
 	}
@@ -295,47 +282,42 @@ mgt_vcl_symtab_clean(struct vclprog *vp)
 /*--------------------------------------------------------------------*/
 
 static void
-mcf_vcl_vbor_dump_map(struct cli *cli, struct vboc *vboc, int indent)
+mcf_vcl_vbor_dump_map(struct cli *cli, struct vbor *vbor, int indent)
 {
+	struct vboc vboc;
 	struct vbor next;
-	size_t len;
 	const char *sval;
 	size_t val_len;
+	enum vbor_major_type type;
+	unsigned bval;
+	uint64_t uval;
 
 	VCLI_Out(cli, "%*s{object}\n", indent, "");
-	VBOR_GetMapSize(vboc->current, &len);
-	len *= 2;
-	for (size_t ctr = 0; ctr < len; ctr++) {
-		assert(VBOC_Next(vboc, &next) < VBOR_END);
-		if (ctr % 2 == 0) {
-			assert(VBOR_What(&next) == VBOR_TEXT_STRING);
-			assert(VBOR_GetString(&next, &sval, &val_len) == 0);
-			VCLI_Out(cli, "%*s[\"%.*s\"]: ", indent + 2, "", (int)val_len, sval);
-		}
-		else {
-			enum vbor_major_type type;
-			unsigned bval;
-			uint64_t uval;
+	assert(VBOR_What(vbor) == VBOR_MAP);
+	assert(!VBOR_Inside(vbor, &next));
+	VBOC_Init(&vboc, &next);
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(!VBOR_GetString(&next, &sval, &val_len));
+		VCLI_Out(cli, "%*s[\"%.*s\"]: ", indent + 2, "", (int)val_len, sval);
 
-			type = VBOR_What(&next);
-			switch (type) {
-				case VBOR_TEXT_STRING:
-					assert(VBOR_GetString(&next, &sval, &val_len) == 0);
-					VCLI_Out(cli, "{string} <%.*s>", (int)val_len, sval);
-					break;
-				case VBOR_BOOL:
-					assert(VBOR_GetBool(&next, &bval) == 0);
-					VCLI_Out(cli, "{%s}", bval ? "true" : "false");
-					break;
-				case VBOR_UINT:
-					assert(VBOR_GetUInt(&next, &uval) == 0);
-					VCLI_Out(cli, "{number} <%lu>", uval);
-					break;
-				default:
-					WRONG("Bad vbor type");
-			}
-			VCLI_Out(cli, "\n");
+		type = VBOC_Next(&vboc, &next);
+		switch (type) {
+			case VBOR_TEXT_STRING:
+				assert(VBOR_GetString(&next, &sval, &val_len) == 0);
+				VCLI_Out(cli, "{string} <%.*s>", (int)val_len, sval);
+				break;
+			case VBOR_BOOL:
+				assert(VBOR_GetBool(&next, &bval) == 0);
+				VCLI_Out(cli, "{%s}", bval ? "true" : "false");
+				break;
+			case VBOR_UINT:
+				assert(VBOR_GetUInt(&next, &uval) == 0);
+				VCLI_Out(cli, "{number} <%lu>", uval);
+				break;
+			default:
+				WRONG("Bad vbor type");
 		}
+		VCLI_Out(cli, "\n");
 	}
 }
 
@@ -352,16 +334,19 @@ mcf_vcl_vbor_dump(struct cli *cli, const struct vbor *vbor, int indent)
 	assert(VBOC_Init(&vboc, (struct vbor*)vbor) == 0);
 	type = VBOR_What(vbor);
 	if (type == VBOR_ARRAY) {
-		VBOC_Next(&vboc, &next);
-		assert(VBOR_GetArraySize(&next, &array_size) == 0);
+		assert(!VBOR_Inside(vbor, &next));
+		assert(VBOR_What(&next) == VBOR_ARRAY);
 		VCLI_Out(cli, "%*s{array}\n", indent, "");
 	}
-	else if (type != VBOR_MAP) {
+	else if (type == VBOR_MAP)
+		assert(!VBOR_Copy(&next, vbor));
+	else
 		WRONG("Bad vbor type");
-	}
+	assert(!VBOR_Inside(&next, &next));
+	assert(!VBOC_Init(&vboc, &next));
 	for (size_t ctr = 0; ctr < array_size; ctr++) {
 		assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
-		mcf_vcl_vbor_dump_map(cli, &vboc, indent + 2);
+		mcf_vcl_vbor_dump_map(cli, &next, indent + 2);
 	}
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
