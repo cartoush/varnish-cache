@@ -473,7 +473,6 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 	struct expr *e2;
 	struct vboc vboc;
 	struct vbor next;
-	size_t arr_len = 0;
 	const char *val = NULL;
 	size_t val_len = 0;
 
@@ -481,12 +480,10 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 		ExpectErr(tl, ID);
 		ERRCHK(tl);
 
-		VBOC_Init(&vboc, (struct vbor*)fa->enums);
-		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-		assert(!VBOR_GetArraySize(&next, &arr_len));
-		size_t i = 0;
-		for (; i < arr_len; i++) {
-			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(VBOR_What(fa->enums));
+		assert(!VBOR_Inside(fa->enums, &next));
+		VBOC_Init(&vboc, &next);
+		while (VBOC_Next(&vboc, &next) < VBOR_END) {
 			assert(!VBOR_GetString(&next, &val, &val_len));
 			val = strndup(val, val_len);
 			if (vcc_IdIs(tl->t, val)) {
@@ -495,15 +492,13 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 			}
 			free((void*)val);
 		}
-		if (i == arr_len) {
+		if (VBOR_What(&next) == VBOR_END) {
 			VSB_cat(tl->sb, "Wrong enum value.");
 			VSB_cat(tl->sb, "  Expected one of:\n");
 
+			assert(!VBOR_Inside(fa->enums, &next));
 			VBOC_Init(&vboc, (struct vbor*)fa->enums);
-			assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-			assert(!VBOR_GetArraySize(&next, &arr_len));
-			for (i = 0; i < arr_len; i++) {
-				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+			while (VBOC_Next(&vboc, &next) < VBOR_END) {
 				assert(!VBOR_GetString(&next, &val, &val_len));
 				VSB_printf(tl->sb, "\t%.*s\n", (int)val_len, val);
 			}
@@ -539,6 +534,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	struct token *tf, *t1;
 	const struct vbor *vbor;
 	struct vboc vboc;
+	struct vboc vboc2;
 	struct vbor next;
 	const char *val = NULL;
 	size_t val_len = 0;
@@ -548,12 +544,15 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 
 	CAST_OBJ_NOTNULL(vbor, priv, VBOR_MAGIC);
 
-	VBOC_Init(&vboc, (struct vbor*)vbor);
-	size_t top_len = 0;
-	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	assert(!VBOR_GetArraySize(&next, &top_len));
-	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(VBOR_What(vbor) == VBOR_ARRAY);
+	assert(!VBOR_Inside(vbor, &next));
+	assert(VBOR_What(&next) == VBOR_ARRAY);
+	VBOC_Init(&vboc, &next);
+
+	assert(!VBOR_Inside(&next, &next));
+	VBOC_Init(&vboc2, &next);
+
+	assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	val = strndup(val, val_len);
@@ -561,12 +560,14 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	free((void*)val);
 	AN(rfmt);
 
-	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	cfunc = strndup(val, val_len);
 
-	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
+	VBOC_Fini(&vboc2);
+
 	if (val_len == 0)
 		sa = NULL;
 	else
@@ -593,8 +594,9 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		extra_sep = ", ";
 	}
 	VTAILQ_INIT(&head);
-	for (size_t i = 0; i < top_len - 3; i++) {
-		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	VBOC_Next(&vboc, &next);
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(VBOR_What(&next) == VBOR_ARRAY);
 		size_t arr_len = 0;
 		fa = calloc(1, sizeof *fa);
 		AN(fa);
@@ -602,13 +604,14 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		VTAILQ_INSERT_TAIL(&head, fa, list);
 
 		assert(!VBOR_GetArraySize(&next, &arr_len));
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_Inside(&next, &next));
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (!memcmp(val, "PRIV_", 5)) {
 			val = strndup(val, val_len);
 			fa->result = vcc_priv_arg(tl, val, sym);
 			if (arr_len >= 2) {
-				assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+				assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 				if (!VBOR_GetString(&next, &val, &val_len))
 					fa->name = strndup(val, val_len);
 			}
@@ -618,7 +621,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		AN(fa->type);
 		assert(arr_len < 6);
 		if (arr_len >= 2) {
-			enum vbor_major_type type = VBOC_Next(&vboc, &next);
+			enum vbor_major_type type = VBOC_Next(&vboc2, &next);
 			assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
 			if (type == VBOR_TEXT_STRING) {
 				assert(!VBOR_GetString(&next, &val, &val_len));
@@ -627,7 +630,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 			else
 				fa->name = NULL;
 			if (arr_len >= 3) {
-				type = VBOC_Next(&vboc, &next);
+				type = VBOC_Next(&vboc2, &next);
 				assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
 				if (type == VBOR_TEXT_STRING) {
 					assert(!VBOR_GetString(&next, &val, &val_len));
@@ -650,20 +653,14 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 					fa->val = NULL;
 				if (arr_len >= 4) {
 					struct vbor *vb;
-					assert(VBOC_Next(&vboc, &next) < VBOR_END);
+					assert(VBOC_Next(&vboc2, &next) < VBOR_END);
 					ALLOC_OBJ(vb, VBOR_MAGIC);
 					VBOR_Copy(vb, &next);
 					vb->flags = VBOR_ALLOCATED;
 					fa->enums = vb;
-					if (VBOR_What(&next) == VBOR_ARRAY) {
-						size_t ll = 0;
-						VBOR_GetArraySize(&next, &ll);
-						for (size_t j = 0; j < ll; j++)
-							assert(VBOC_Next(&vboc, &next) < VBOR_END);
-					}
 					if (arr_len >= 5) {
 						unsigned b = 0;
-						assert(VBOC_Next(&vboc, &next) < VBOR_END);
+						assert(VBOC_Next(&vboc2, &next) < VBOR_END);
 						if (VBOR_What(&next) == VBOR_BOOL) {
 							assert(!VBOR_GetBool(&next, &b));
 							if (sa != NULL && b == 1)
@@ -673,6 +670,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 				}
 			}
 		}
+		VBOC_Fini(&vboc2);
 	}
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
