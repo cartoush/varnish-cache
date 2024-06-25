@@ -145,6 +145,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 {
 	struct vbob *vbob = NULL;
 	struct vboc vboc;
+	struct vboc vboc2;
 	struct vbor next;
 	const char *val = NULL;
 	size_t val_len = 0;
@@ -162,11 +163,13 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	}
 	vim->vb->flags |= VBOR_ALLOCATED;
 
-	VBOC_Init(&vboc, vim->vb);
-	if (VBOC_Next(&vboc, &next) != VBOR_ARRAY)
+	if (VBOR_What(vim->vb) != VBOR_ARRAY)
 		return "Not array[0]";
-	if (VBOC_Next(&vboc, &next) != VBOR_ARRAY)
+	assert(!VBOR_Inside(vim->vb, &next));
+	if (VBOR_What(&next) != VBOR_ARRAY)
 		return "Not array[1]";
+	assert(!VBOR_Inside(&next, &next));
+	assert(!VBOC_Init(&vboc, &next));
 	if (VBOC_Next(&vboc, &next) != VBOR_TEXT_STRING)
 		return "Not string[2]";
 	assert(!VBOR_GetString(&next, &val, &val_len));
@@ -230,15 +233,13 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 		return ("");
 	}
 
-	assert(!VBOC_Init(&vboc, vim->vb));
-	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	size_t top_size = 0;
-	assert(!VBOR_GetArraySize(&next, &top_size));
-	for (size_t i = 0; i < top_size; i++) {
-		size_t sub_size = 0;
-		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-		assert(!VBOR_GetArraySize(&next, &sub_size));
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_Inside(vim->vb, &next));
+	assert(!VBOC_Init(&vboc, &next));
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(VBOR_What(&next) == VBOR_ARRAY);
+		assert(!VBOR_Inside(&next, &next));
+		assert(!VBOC_Init(&vboc2, &next));
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		assert(val[0] == '$');
 
@@ -249,18 +250,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 #undef STANZA
 		if (!valid_stanza)
 			return ("Unknown metadata stanza.");
-		for (size_t j = 1; j < sub_size; j++) {
-			size_t s = 0;
-			assert(VBOC_Next(&vboc, &next) < VBOR_END);
-			if (VBOR_What(&next) == VBOR_ARRAY) {
-				assert(!VBOR_GetArraySize(&next, &s));
-				sub_size += s;
-			}
-			else if (VBOR_What(&next) == VBOR_MAP) {
-				assert(!VBOR_GetMapSize(&next, &s));
-				sub_size += s * 2;
-			}
-		}
+		VBOC_Fini(&vboc2);
 	}
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
@@ -391,38 +381,24 @@ vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
 {
 	struct vbor next;
 	struct vboc vboc;
-	size_t top_size;
+	struct vboc vboc2;
 	const char *val = NULL;
 	size_t val_len = 0;
 
+	assert(VBOR_What(vim->vb) == VBOR_ARRAY);
+	assert(VBOR_Inside(vim->vb, &next));
 	VBOC_Init(&vboc, (struct vbor*)vim->vb);
-	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	assert(!VBOR_GetArraySize(&next, &top_size));
-	for (size_t i = 0; i < top_size; i++) {
-		size_t sub_size = 0;
-
-		int a = VBOC_Next(&vboc, &next);
-		assert(a == VBOR_ARRAY);
-		assert(!VBOR_GetArraySize(&next, &sub_size));
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(VBOR_What(&next) == VBOR_ARRAY);
+		assert(!VBOR_Inside(&next, &next));
+		assert(!VBOC_Init(&vboc2, &next));
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (val_len == strlen(stanza) && !strncmp(val, stanza, val_len)) {
 			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-			sub_size--;
 			func(tl, vim, &next);
 		}
-		for (size_t j = 1; j < sub_size; j++) {
-			assert(VBOC_Next(&vboc, &next) < VBOR_END);
-			size_t s = 0;
-			if (VBOR_What(&next) == VBOR_ARRAY) {
-				assert(!VBOR_GetArraySize(&next, &s));
-				sub_size += s;
-			}
-			else if (VBOR_What(&next) == VBOR_MAP) {
-				assert(!VBOR_GetMapSize(&next, &s));
-				sub_size += 2 * s;
-			}
-		}
+		VBOC_Fini(&vboc2);
 	}
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
