@@ -211,6 +211,7 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 	struct vbor vbor, next;
 	struct vbob *vbob;
 	struct vboc vboc;
+	struct vboc vboc2;
 
 	CHECK_OBJ_NOTNULL(vp, VCLPROG_MAGIC);
 	AN(input);
@@ -224,47 +225,38 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 	AN(vp->symtab);
 	VBOR_Copy(vp->symtab, &vbor);
 	vp->symtab->flags = VBOR_ALLOCATED | VBOR_OWNS_DATA;
-	VBOC_Init(&vboc, &vbor);
-	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(VBOR_What(&vbor) == VBOR_ARRAY);
+	assert(!VBOR_Inside(&vbor, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
-		size_t map_size;
-		struct vbor map_begin;
 		const char *dir_val = NULL;
 		size_t dir_val_len = 0;
 		const char *type_val = NULL;
 		size_t type_val_len = 0;
 
 		assert(VBOR_What(&next) == VBOR_MAP);
-		assert(VBOR_GetMapSize(&next, &map_size) == 0);
-		memcpy(&map_begin, &next, sizeof(map_begin));
-		map_size *= 2;
-		for (size_t ctr = 0; ctr < map_size; ctr++) {
-			assert(VBOC_Next(&vboc, &next) < VBOR_END);
-			if (ctr % 2 == 0 && (dir_val == NULL || type_val == NULL)) {
-				const char *val;
-				size_t val_len;
+		assert(!VBOR_Inside(&next, &next));
+		while (VBOC_Next(&vboc, &next)) {
+			const char *val;
+			size_t val_len;
 
-				assert(VBOR_What(&next) == VBOR_TEXT_STRING);
-				assert(VBOR_GetString(&next, &val, &val_len) == 0);
-				if (val_len == sizeof("dir") - 1 && !strncmp("dir", val, val_len)) {
-					assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-					ctr++;
-					assert(VBOR_GetString(&next, &dir_val, &dir_val_len) == 0);
-				}
-				else if (val_len == sizeof("type") - 1 && !strncmp("type", val, val_len)) {
-					assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-					ctr++;
-					assert(VBOR_GetString(&next, &type_val, &type_val_len) == 0);
-				}
-			}
+			assert(VBOR_What(&next) == VBOR_TEXT_STRING);
+			assert(VBOR_GetString(&next, &val, &val_len) == 0);
+			assert(VBOC_Next(&vboc, &next) < VBOR_END);
+			if (val_len == sizeof("dir") - 1 && !strncmp("dir", val, val_len))
+				assert(VBOR_GetString(&next, &dir_val, &dir_val_len) == 0);
+			else if (val_len == sizeof("type") - 1 && !strncmp("type", val, val_len))
+				assert(VBOR_GetString(&next, &type_val, &type_val_len) == 0);
+			if (dir_val != NULL && type_val != NULL)
+				break;
 		}
 		if (!dir_val || (dir_val_len != sizeof("import") - 1 || strncmp("import", dir_val, dir_val_len)))
 			continue;
 		AN(type_val);
 		if (type_val_len == sizeof("$VMOD") - 1 && !strncmp("$VMOD", type_val, type_val_len))
-			mgt_vcl_import_vmod(vp, &map_begin);
+			mgt_vcl_import_vmod(vp, vboc.current);
 		else if (type_val_len == sizeof("$VCL") - 1 && !strncmp("$VCL", type_val, type_val_len))
-			mgt_vcl_import_vcl(vp, &map_begin);
+			mgt_vcl_import_vcl(vp, vboc.current);
 		else
 			WRONG("Bad symtab import entry");
 	}
