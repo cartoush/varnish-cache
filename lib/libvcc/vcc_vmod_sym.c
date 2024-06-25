@@ -134,10 +134,11 @@ func_restrict(struct vcc *tl, struct symbol *sym, vcc_kind_t kind, const struct 
 	if (kind != SYM_FUNC && kind != SYM_METHOD)
 		return;
 
-	VBOC_Init(&vboc, (struct vbor*)v);
-	VBOC_Next(&vboc, &next);
-	if (VBOC_Next(&vboc, &next) != VBOR_ARRAY)
+	assert(!VBOR_Inside(v, &next));
+	if (VBOR_What(&next) != VBOR_ARRAY)
 		return;
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOC_Init(&vboc, &next));
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
@@ -146,13 +147,13 @@ func_restrict(struct vcc *tl, struct symbol *sym, vcc_kind_t kind, const struct 
 		return;
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	assert(!VBOR_GetArraySize(&next, &arr_len));
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOC_Init(&vboc, &next));
 	sym->r_methods = 0;
-
-	for (size_t i = 0; i < arr_len; i++) {
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		unsigned s = 0;
 
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(VBOR_What(&next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 #define VCL_CTX(l,H) \
 		if (val_len == sizeof(#l) - 1 && !strncmp(val, #l, val_len)) s = VCL_MET_##H;
@@ -229,8 +230,10 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 	VBOR_Copy(vbor, &next);
 	sym->eval_priv = vbor;
 
-	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOR_What(&next) == VBOR_ARRAY);
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOR_What(&next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	sym->type = VCC_Type(strndup(val, val_len));
 	AN(sym->type);
@@ -245,6 +248,7 @@ vcc_VmodSymbols_sub(struct vcc *tl, const struct symbol *sym, unsigned ll)
 {
 	const struct vbor *vbor;
 	struct vboc vboc;
+	struct vboc vboc2;
 	struct vbor next;
 	vcc_kind_t kind;
 	enum vbor_major_type type = VBOR_END;
@@ -252,9 +256,13 @@ vcc_VmodSymbols_sub(struct vcc *tl, const struct symbol *sym, unsigned ll)
 	CAST_OBJ_NOTNULL(vbor, sym->eval_priv, VBOR_MAGIC);
 	VBOC_Init(&vboc, (struct vbor*)vbor);
 	if (sym->kind == SYM_VMOD) {
-		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+		assert(VBOR_What(vbor) == VBOR_ARRAY);
+		assert(!VBOR_Inside(vbor, &next));
+		assert(!VBOC_Init(&vboc, &next));
 	} else if (sym->kind != SYM_OBJECT) {
 		WRONG("symbol kind");
+	} else {
+		assert(!VBOC_Init(&vboc, &next));
 	}
 
 	size_t ii = 0;
@@ -265,73 +273,26 @@ vcc_VmodSymbols_sub(struct vcc *tl, const struct symbol *sym, unsigned ll)
 		size_t val_len = 0;
 
 		ii++;
-		if (type == VBOR_MAP) {
-			assert(!VBOR_GetMapSize(&next, &arr_len));
-			arr_len *= 2;
-			for (size_t i = 0; i < arr_len; i++) {
-				size_t s = 0;
-				assert((type = VBOC_Next(&vboc, &next)) < VBOR_END);
-				if (type == VBOR_ARRAY) {
-					assert(!VBOR_GetArraySize(&next, &s));
-					arr_len += s;
-				}
-				else if (type == VBOR_MAP) {
-					assert(!VBOR_GetMapSize(&next, &s));
-					arr_len += s * 2;
-				}
-			}
-		}
 		if (type != VBOR_ARRAY) {
 			continue;
 		}
-		assert(!VBOR_GetArraySize(&next, &arr_len));
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-		assert(!VBOR_GetString(&next, &val, &val_len));
-		if ((type = VBOC_Next(&vboc, &next)) != VBOR_TEXT_STRING) {
-			size_t s = 0;
 
-			if (type == VBOR_ARRAY) {
-				assert(!VBOR_GetArraySize(&next, &s));
-				arr_len += s;
-			}
-			else if (type == VBOR_MAP) {
-				assert(!VBOR_GetMapSize(&next, &s));
-				arr_len += 2 * s;
-			}
-			for (size_t i = 2; i < arr_len; i++) {
-				assert((type = VBOC_Next(&vboc, &next)) < VBOR_END);
-				if (type == VBOR_ARRAY) {
-					assert(!VBOR_GetArraySize(&next, &s));
-					arr_len += s;
-				}
-				else if (type == VBOR_MAP) {
-					assert(!VBOR_GetMapSize(&next, &s));
-					arr_len += 2 * s;
-				}
-			}
+		assert(!VBOR_Inside(&next, &next));
+		assert(!VBOC_Init(&vboc2, &next));
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		if ((type = VBOC_Next(&vboc, &next)) != VBOR_TEXT_STRING)
 			continue;
-		}
 		kind = SYM_NONE;
 #define STANZA(UU, ll, ss) if (val_len == sizeof("$" #UU) - 1 && !strncmp(val, "$" #UU, val_len)) kind = ss;
 		STANZA_TBL
 #undef STANZA
 		size_t len = arr_len - 1;
-		for (size_t i = 2; i < arr_len; i++) {
-			size_t s = 0;
-			assert(VBOC_Next(&vboc, &vv) < VBOR_END);
-			if (VBOR_What(&vv) == VBOR_ARRAY) {
-				assert(!VBOR_GetArraySize(&vv, &s));
-				arr_len += s;
-			}
-			else if (VBOR_What(&vv) == VBOR_MAP) {
-				assert(!VBOR_GetMapSize(&vv, &s));
-				arr_len += 2 * s;
-			}
-		}
 		if (kind != SYM_NONE) {
 			func_sym(tl, kind, sym, &next, &vv, len);
 			ERRCHK(tl);
 		}
+		VBOC_Fini(&vboc2);
 	}
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
@@ -389,15 +350,17 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	VBOC_Init(&vboc, (struct vbor*)vbor);
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
-	assert(!VBOR_GetMapSize(&next, &map_size));
+	assert(!VBOR_Inside(&next, &next));
 	// vbor = flags
 
-	for (size_t i = 0; i < map_size; i++) {
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(VBOR_What(&next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
-		VBOC_Next(&vboc, &next);
-		if (null_ok == -1 && val_len == sizeof("NULL_OK") - 1 && !strncmp(val, "NULL_OK", val_len))
+		assert(VBOC_Next(&vboc, &next) < VBOR_END);
+		if (val_len == sizeof("NULL_OK") - 1 && !strncmp(val, "NULL_OK", val_len)) {
 			assert(!VBOR_GetBool(&next, &null_ok));
+			break;
+		}
 	}
 	if (!null_ok)
 		VTAILQ_INSERT_TAIL(&tl->sym_objects, isym, sideways);
@@ -416,16 +379,6 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	struct vbor vbor2;
 
 	assert(VBOC_Next(&vboc, &vbor2) == VBOR_ARRAY);
-	assert(!VBOR_GetArraySize(&vbor2, &arr_len));
-	for (size_t i = 0; i < arr_len; i++) {
-		size_t add_arr_len = 0;
-		assert(VBOC_Next(&vboc, &next) < VBOR_END);
-		if (VBOR_What(&next) == VBOR_ARRAY) {
-			assert(!VBOR_GetArraySize(&next, &add_arr_len));
-			arr_len += add_arr_len;
-		}
-	}
-
 	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
 	buf = VSB_new_auto();
 	AN(buf);
@@ -437,12 +390,17 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	SkipToken(tl, ';');
 	isym->def_e = tl->t;
 
+	assert(!VBOR_Inside(&next, &next));
+	assert(!VBOC_Init(&vboc, &next));
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	assert(val_len == sizeof("$FINI") - 1 && !strncmp(val, "$FINI", val_len));
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOR_What(&next) == VBOR_ARRAY);
+	assert(!VBOR_Inside(&next, &next));
+	assert(!VBOC_Init(&vboc, &next));
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
