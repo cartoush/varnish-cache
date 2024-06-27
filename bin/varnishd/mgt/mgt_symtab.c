@@ -62,7 +62,7 @@ mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map)
 
 	assert(VBOR_What(vbor_map) == VBOR_MAP);
 	assert(!VBOR_Inside(vbor_map, &next));
-	assert(VBOC_Init(&vboc, &next));
+	assert(!VBOC_Init(&vboc, &next));
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &name, &name_len));
 		assert(VBOC_Next(&vboc, &next) < VBOR_END);
@@ -140,7 +140,7 @@ mgt_vcl_import_vmod(struct vclprog *vp, struct vbor *vbor_map)
 
 	assert(VBOR_What(vbor_map) == VBOR_MAP);
 	assert(!VBOR_Inside(vbor_map, &next));
-	VBOC_Init(&vboc, vbor_map);
+	assert(!VBOC_Init(&vboc, &next));
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		const char *val;
 		size_t val_len;
@@ -227,7 +227,7 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 	vp->symtab->flags = VBOR_ALLOCATED | VBOR_OWNS_DATA;
 	assert(VBOR_What(&vbor) == VBOR_ARRAY);
 	assert(!VBOR_Inside(&vbor, &next));
-	VBOC_Init(&vboc, &next);
+	assert(!VBOC_Init(&vboc, &next));
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		const char *dir_val = NULL;
 		size_t dir_val_len = 0;
@@ -236,13 +236,14 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 
 		assert(VBOR_What(&next) == VBOR_MAP);
 		assert(!VBOR_Inside(&next, &next));
-		while (VBOC_Next(&vboc, &next)) {
+		assert(!VBOC_Init(&vboc2, &next));
+		while (VBOC_Next(&vboc2, &next) < VBOR_END) {
 			const char *val;
 			size_t val_len;
 
 			assert(VBOR_What(&next) == VBOR_TEXT_STRING);
 			assert(VBOR_GetString(&next, &val, &val_len) == 0);
-			assert(VBOC_Next(&vboc, &next) < VBOR_END);
+			assert(VBOC_Next(&vboc2, &next) < VBOR_END);
 			if (val_len == sizeof("dir") - 1 && !strncmp("dir", val, val_len))
 				assert(VBOR_GetString(&next, &dir_val, &dir_val_len) == 0);
 			else if (val_len == sizeof("type") - 1 && !strncmp("type", val, val_len))
@@ -287,7 +288,7 @@ mcf_vcl_vbor_dump_map(struct cli *cli, struct vbor *vbor, int indent)
 	VCLI_Out(cli, "%*s{object}\n", indent, "");
 	assert(VBOR_What(vbor) == VBOR_MAP);
 	assert(!VBOR_Inside(vbor, &next));
-	VBOC_Init(&vboc, &next);
+	assert(!VBOC_Init(&vboc, &next));
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &sval, &val_len));
 		VCLI_Out(cli, "%*s[\"%.*s\"]: ", indent + 2, "", (int)val_len, sval);
@@ -319,25 +320,21 @@ mcf_vcl_vbor_dump(struct cli *cli, const struct vbor *vbor, int indent)
 	enum vbor_major_type type;
 	struct vboc vboc;
 	struct vbor next;
-	size_t array_size = 1;
 
 	CHECK_OBJ_NOTNULL(cli, CLI_MAGIC);
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	assert(VBOC_Init(&vboc, (struct vbor*)vbor) == 0);
 	type = VBOR_What(vbor);
 	if (type == VBOR_ARRAY) {
 		assert(!VBOR_Inside(vbor, &next));
-		assert(VBOR_What(&next) == VBOR_ARRAY);
 		VCLI_Out(cli, "%*s{array}\n", indent, "");
 	}
 	else if (type == VBOR_MAP)
 		assert(!VBOR_Copy(&next, vbor));
 	else
 		WRONG("Bad vbor type");
-	assert(!VBOR_Inside(&next, &next));
 	assert(!VBOC_Init(&vboc, &next));
-	for (size_t ctr = 0; ctr < array_size; ctr++) {
-		assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(VBOR_What(&next) == VBOR_MAP);
 		mcf_vcl_vbor_dump_map(cli, &next, indent + 2);
 	}
 	VBOC_Fini(&vboc);

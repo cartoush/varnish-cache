@@ -482,7 +482,7 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 
 		assert(VBOR_What(fa->enums));
 		assert(!VBOR_Inside(fa->enums, &next));
-		VBOC_Init(&vboc, &next);
+		assert(!VBOC_Init(&vboc, &next));
 		while (VBOC_Next(&vboc, &next) < VBOR_END) {
 			assert(!VBOR_GetString(&next, &val, &val_len));
 			val = strndup(val, val_len);
@@ -497,7 +497,7 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 			VSB_cat(tl->sb, "  Expected one of:\n");
 
 			assert(!VBOR_Inside(fa->enums, &next));
-			VBOC_Init(&vboc, (struct vbor*)fa->enums);
+			assert(!VBOC_Init(&vboc, &next));
 			while (VBOC_Next(&vboc, &next) < VBOR_END) {
 				assert(!VBOR_GetString(&next, &val, &val_len));
 				VSB_printf(tl->sb, "\t%.*s\n", (int)val_len, val);
@@ -545,28 +545,26 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	CAST_OBJ_NOTNULL(vbor, priv, VBOR_MAGIC);
 
 	assert(VBOR_What(vbor) == VBOR_ARRAY);
+	assert(!VBOR_GetArraySize(vbor, &val_len));
 	assert(!VBOR_Inside(vbor, &next));
-	assert(VBOR_What(&next) == VBOR_ARRAY);
-	VBOC_Init(&vboc, &next);
+	assert(!VBOC_Init(&vboc, &next));
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(!VBOR_GetArraySize(&next, &val_len));
 
 	assert(!VBOR_Inside(&next, &next));
-	VBOC_Init(&vboc2, &next);
-
-	assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
-
+	assert(VBOR_What(&next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	val = strndup(val, val_len);
 	rfmt = VCC_Type(val);
 	free((void*)val);
 	AN(rfmt);
 
-	assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	cfunc = strndup(val, val_len);
 
-	assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	VBOC_Fini(&vboc2);
 
 	if (val_len == 0)
 		sa = NULL;
@@ -594,7 +592,6 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		extra_sep = ", ";
 	}
 	VTAILQ_INIT(&head);
-	VBOC_Next(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(VBOR_What(&next) == VBOR_ARRAY);
 		size_t arr_len = 0;
@@ -605,6 +602,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 
 		assert(!VBOR_GetArraySize(&next, &arr_len));
 		assert(!VBOR_Inside(&next, &next));
+		assert(!VBOC_Init(&vboc2, &next));
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (!memcmp(val, "PRIV_", 5)) {

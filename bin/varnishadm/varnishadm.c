@@ -243,10 +243,11 @@ static char *
 command_generator(const char *text, int state)
 {
 	static struct vbor cmds;
+	static struct vboc vboc;
+	struct vboc vboc2;
+	struct vbor next;
 	unsigned u;
 	char *answer = NULL;
-	static struct vboc vboc;
-	static struct vbor next;
 
 	if (!state) {
 		cli_write(line_sock, "help -j\n");
@@ -263,16 +264,17 @@ command_generator(const char *text, int state)
 		if (u)
 			return (NULL);
 		assert(VBOR_What(&cmds) == VBOR_ARRAY);
-		assert(VBOR_Inside(&next, &cmds));
-		VBOC_Init(&vboc, &next);
+		assert(!VBOR_Inside(&cmds, &next));
+		assert(!VBOC_Init(&vboc, &next));
 		assert(VBOC_Next(&vboc, &next) == VBOR_UINT);
 		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_Inside(&next, &next));
+		assert(!VBOC_Init(&vboc2, &next));
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(VBOC_Next(&vboc, &next) == VBOR_DOUBLE);
 	}
 	while (VBOC_Next(&vboc, &next) == VBOR_MAP) {
-		struct vboc vboc2;
 		const char *str;
 		size_t str_len;
 
@@ -280,11 +282,10 @@ command_generator(const char *text, int state)
 		assert(!VBOC_Init(&vboc2, &next));
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(VBOR_GetString(&next, &str, &str_len) == 0);
-		assert(str_len >= sizeof("request") - 1);
-		assert(!strncmp(str, "request", sizeof("request") - 1));
+		assert(str_len == sizeof("request") - 1 && !strncmp(str, "request", sizeof("request") - 1));
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(VBOR_GetString(&next, &str, &str_len) == 0);
-		if (strlen(str) == strlen(text) && !strncmp(text, str, strlen(text)))
+		if (!strncmp(text, str, strlen(text)))
 			return strndup(str, str_len);
 		VBOC_Fini(&vboc2);
 	}

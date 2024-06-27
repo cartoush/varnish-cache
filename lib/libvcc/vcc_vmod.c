@@ -145,7 +145,6 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 {
 	struct vbob *vbob = NULL;
 	struct vboc vboc;
-	struct vboc vboc2;
 	struct vbor next;
 	const char *val = NULL;
 	size_t val_len = 0;
@@ -238,8 +237,6 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(VBOR_What(&next) == VBOR_ARRAY);
 		assert(!VBOR_Inside(&next, &next));
-		assert(!VBOC_Init(&vboc2, &next));
-		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		assert(val[0] == '$');
 
@@ -250,7 +247,6 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 #undef STANZA
 		if (!valid_stanza)
 			return ("Unknown metadata stanza.");
-		VBOC_Fini(&vboc2);
 	}
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
@@ -341,8 +337,7 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 	size_t val_len = 0;
 
 	(void)vim;
-	VBOC_Init(&vboc, (struct vbor*)vb);
-	assert(VBOR_What(vb) == VBOR_TEXT_STRING);
+	assert(!VBOC_Init(&vboc, (struct vbor*)vb));
 	assert(!VBOR_GetString(vb, &val, &val_len));
 
 	char *cproto = NULL;
@@ -386,8 +381,8 @@ vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
 	size_t val_len = 0;
 
 	assert(VBOR_What(vim->vb) == VBOR_ARRAY);
-	assert(VBOR_Inside(vim->vb, &next));
-	VBOC_Init(&vboc, (struct vbor*)vim->vb);
+	assert(!VBOR_Inside(vim->vb, &next));
+	assert(!VBOC_Init(&vboc, &next));
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(VBOR_What(&next) == VBOR_ARRAY);
 		assert(!VBOR_Inside(&next, &next));
@@ -395,7 +390,7 @@ vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (val_len == strlen(stanza) && !strncmp(val, stanza, val_len)) {
-			assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+			assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 			func(tl, vim, &next);
 		}
 		VBOC_Fini(&vboc2);

@@ -649,7 +649,8 @@ VBOR_What(const struct vbor *vbor)
 {
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(vbor->data);
-	AN(vbor->len);
+	if (vbor->len == 0)
+		return (VBOR_END);
 	return (VBOR_DecodeType(vbor->data[0]));
 }
 
@@ -1136,29 +1137,29 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 	enum vbor_major_type type;
 	enum vbor_argument arg;
 	size_t len;
-	size_t skip = 1;
-	unsigned sub_depth;
+	size_t skip;
 
 	if (vboc->current->magic == 0) {
-		if (VBOR_Copy(&vboc->current[0], vboc->src))
+		if (VBOR_Copy(vboc->current, vboc->src))
 			return (VBOR_ERROR);
-		if (VBOR_Copy(vbor, &vboc->current[0]))
+		if (VBOR_Copy(vbor, vboc->current))
 			return (VBOR_ERROR);
 		return (VBOR_What(vboc->current));
 	}
-	if (vboc->current->len <= 0)
+	if (vboc->current->len <= 0) {
+		memcpy(vbor, vboc->current, sizeof (struct vbor));
 		return (VBOR_END);
-	type = VBOR_What(vboc->current);
-	sub_depth = vboc->current->max_depth;
+	}
 	if (VBOR_GetHeader(vboc->current, &type, &arg, &len))
 		return (VBOR_ERROR);
 	if (VBOR_GetByteSize(vboc->current, &skip))
 		return (VBOR_ERROR);
 	if (vboc->current->len - skip <= 0) {
 		vboc->current->len = 0;
+		memcpy(vbor, vboc->current, sizeof (struct vbor));
 		return (VBOR_END);
 	}
-	if (VBOR_Init(vboc->current, vboc->current->data + skip, vboc->current->len - skip, sub_depth) == -1)
+	if (VBOR_Init(vboc->current, vboc->current->data + skip, vboc->current->len - skip, vboc->current->max_depth) == -1)
 		return (VBOR_ERROR);
 	if (vbor)
 		memcpy(vbor, &vboc->current[0], sizeof(*vbor));

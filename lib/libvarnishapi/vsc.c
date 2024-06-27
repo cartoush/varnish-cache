@@ -272,6 +272,7 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 
 	assert(VBOR_What(vbor) == VBOR_MAP);
 	assert(!VBOR_Inside(vbor, &next));
+	assert(!VBOC_Init(&vboc, &next));
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &kval, &kval_len));
 		switch (VBOC_Next(&vboc, &next)) {
@@ -526,11 +527,10 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		return (-1);
 	}
 
-	VBOC_Init(&vboc, spd->vb);
-	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
-	assert(!VBOR_GetMapSize(&next, &map_len));
-	for (size_t i = 0; i < map_len; i++) {
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(VBOR_What(spd->vb) == VBOR_MAP);
+	assert(!VBOR_Inside(spd->vb, &next));
+	assert(!VBOC_Init(&vboc, &next));
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		assert(VBOC_Next(&vboc, &next) < VBOR_END);
 		if (sizeof("elements") - 1 == val_len && !strncmp(val, "elements", val_len)) {
@@ -541,19 +541,6 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		else if (sizeof("elem") - 1 == val_len && !strncmp(val, "elem", val_len)) {
 			assert(VBOR_What(&next) == VBOR_MAP);
 			VBOR_Copy(&elem, &next);
-			elements_nb *= 2;
-			size_t len;
-			for (size_t j = 0; j < elements_nb; j++) {
-				assert(VBOC_Next(&vboc, &next) < VBOR_END);
-				switch (VBOR_What(&next)) {
-					case VBOR_MAP:
-						assert(!VBOR_GetMapSize(&next, &len));
-						elements_nb += len * 2;
-						break;
-					default:
-						break;
-				}
-			}
 		}
 	}
 
