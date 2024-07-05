@@ -239,10 +239,10 @@ vsc_clean_point(struct vsc_pt *point)
 
 static void
 vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
-    struct vboc *vboc, struct vsb *vsb, struct vsc_pt *point)
+    struct vbor *vbor, struct vsb *vsb, struct vsc_pt *point)
 {
+	struct vboc vboc;
 	struct vbor next;
-	size_t map_len = 0;
 
 	const char *name = NULL;
 	size_t name_len = 0;
@@ -267,15 +267,14 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	uint64_t uval = -1;
 
 	CHECK_OBJ_NOTNULL(vsc, VSC_MAGIC);
-	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	memset(point, 0, sizeof *point);
 
-	assert(VBOR_What(vboc->current) == VBOR_MAP);
-	assert(!VBOR_GetMapSize(vboc->current, &map_len));
-	for (size_t i = 0; i < map_len; i++) {
-		assert(VBOC_Next(vboc, &next) == VBOR_TEXT_STRING);
+	assert(VBOR_What(vbor) == VBOR_MAP);
+	assert(!VBOR_Inside(vbor, &next));
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &kval, &kval_len));
-		switch (VBOC_Next(vboc, &next)) {
+		switch (VBOC_Next(&vboc, &next)) {
 			case VBOR_TEXT_STRING:
 				assert(!VBOR_GetString(&next, &vval, &vval_len));
 				break;
@@ -558,7 +557,6 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		}
 	}
 
-
 	/* Create the VSC points list */
 	assert(elements_nb != -1);
 	CHECK_OBJ_NOTNULL(&elem, VBOR_MAGIC);
@@ -576,7 +574,7 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 	for (size_t i = 0; i < elements_nb; i++) {
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
-		vsc_fill_point(vsc, sp, &vboc, vsb, pp);
+		vsc_fill_point(vsc, sp, &next, vsb, pp);
 		pp++;
 	}
 	VSB_destroy(&vsb);
