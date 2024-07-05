@@ -376,28 +376,6 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	point->point.raw = vsc->raw;
 }
 
-static void
-vsc_del_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg **spp)
-{
-	unsigned u;
-	struct vsc_pt *pp;
-	struct vsc_seg *sp;
-
-	CHECK_OBJ_NOTNULL(vsc, VSC_MAGIC);
-	AN(vsm);
-	TAKE_OBJ_NOTNULL(sp, spp, VSC_SEG_MAGIC);
-	AZ(VSM_Unmap(vsm, sp->fantom));
-	if (sp->vb != NULL)
-		VBOR_Destroy(&sp->vb);
-	else {
-		pp = sp->points;
-		for (u = 0; u < sp->npoints; u++, pp++)
-			vsc_clean_point(pp);
-		free(sp->points);
-	}
-	FREE_OBJ(sp);
-}
-
 static struct vsc_seg *
 vsc_new_seg(const struct vsm_fantom *fp, enum vsc_seg_type type)
 {
@@ -459,7 +437,6 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 	struct vsc_pt *pp;
 	int retry;
 	const char *val = NULL;
-	size_t map_len = 0;
 	size_t val_len = 0;
 	size_t elements_nb = 0;
 
@@ -556,8 +533,9 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 	pp = sp->points;
 
 	elements_nb = sp->npoints;
-	VBOC_Init(&vboc, &elem);
-	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
+	assert(VBOR_What(&elem) == VBOR_MAP);
+	assert(!VBOR_Inside(&elem, &next));
+	VBOC_Init(&vboc, &next);
 	for (size_t i = 0; i < elements_nb; i++) {
 		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 		assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
