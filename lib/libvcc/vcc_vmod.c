@@ -141,31 +141,29 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	const char *val = NULL, *err;
 	size_t val_len = 0;
 	char *p;
-	enum vbor_json_parse_status json_parse_res = JSON_PARSE_OK;
-	int res;
 
 	vbob = VBOB_Alloc(10);
 	AN(vbob);
 	if (VBOB_ParseJSON(vbob, jsn)) {
-		AN(vbob->err);
-		err = vbob->err;
+		err = VBOB_GetError(vbob);
+		AN(err);
 		VBOB_Destroy(&vbob);
 		return (err);
 	}
 	AZ(VBOB_Finish(vbob, vim->vb));
 
 	if (VBOR_What(vim->vb) != VBOR_ARRAY)
-		return "Not array[0]";
+		return ("Not array[0]");
 	assert(!VBOR_Inside(vim->vb, &next));
 	if (VBOR_What(&next) != VBOR_ARRAY)
-		return "Not array[1]";
+		return ("Not array[1]");
 	assert(!VBOR_Inside(&next, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	if (VBOC_Next(&vboc, &next) != VBOR_TEXT_STRING)
-		return "Not string[2]";
+		return ("Not string[2]");
 	assert(!VBOR_GetString(&next, &val, &val_len));
 	if (val_len != sizeof("$VMOD") - 1 || strncmp(val, "$VMOD", val_len))
-		return "Not $VMOD[3]";
+		return ("Not $VMOD[3]");
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
@@ -225,7 +223,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	}
 
 	assert(!VBOR_Inside(vim->vb, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(VBOR_What(&next) == VBOR_ARRAY);
 		assert(!VBOR_Inside(&next, &next));
@@ -329,7 +327,7 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 	size_t val_len = 0;
 
 	(void)vim;
-	assert(!VBOC_Init(&vboc, (struct vbor*)vb));
+	VBOC_Init(&vboc, (struct vbor*)vb);
 	assert(!VBOR_GetString(vb, &val, &val_len));
 
 	char *cproto = NULL;
@@ -374,11 +372,11 @@ vcc_vb_foreach(struct vcc *tl, const struct vmod_import *vim,
 
 	assert(VBOR_What(vim->vb) == VBOR_ARRAY);
 	assert(!VBOR_Inside(vim->vb, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(VBOR_What(&next) == VBOR_ARRAY);
 		assert(!VBOR_Inside(&next, &next));
-		assert(!VBOC_Init(&vboc2, &next));
+		VBOC_Init(&vboc2, &next);
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (val_len == strlen(stanza) && !strncmp(val, stanza, val_len)) {
@@ -458,13 +456,7 @@ vcc_vim_destroy(struct vmod_import **vimp)
 	TAKE_OBJ_NOTNULL(vim, vimp, VMOD_IMPORT_MAGIC);
 	if (vim->path)
 		free(vim->path);
-	if (vim->vb) {
-		struct vbor *v = vim->vb;
-		if (v->flags & VBOR_ALLOCATED)
-			VBOR_Destroy(&v);
-		else
-			VBOR_Fini(vim->vb);
-	}
+	VBOR_Fini(vim->vb);
 	if (vim->json)
 		VSB_destroy(&vim->json);
 	FREE_OBJ(vim);
