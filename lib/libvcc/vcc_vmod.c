@@ -67,7 +67,7 @@ struct vmod_import {
 
 	struct symbol			*sym;
 	const struct token		*t_mod;
-	struct vbor			*vb;
+	struct vbor			vb[1];
 #define STANZA(UU, ll, ss)		int n_##ll;
 	STANZA_TBL
 #undef STANZA
@@ -138,21 +138,21 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	struct vbob *vbob = NULL;
 	struct vboc vboc;
 	struct vbor next;
-	const char *val = NULL;
+	const char *val = NULL, *err;
 	size_t val_len = 0;
 	char *p;
 	enum vbor_json_parse_status json_parse_res = JSON_PARSE_OK;
+	int res;
 
 	vbob = VBOB_Alloc(10);
 	AN(vbob);
-	json_parse_res = VBOB_ParseJSON(vbob, jsn);
-	ALLOC_OBJ(vim->vb, VBOR_MAGIC);
-	if (VBOB_Finish(vbob, vim->vb) == -1) {
-		if (json_parse_res > JSON_PARSE_OK)
-			return jsn_parse_str[json_parse_res];
-		return NULL;
+	if (VBOB_ParseJSON(vbob, jsn)) {
+		AN(vbob->err);
+		err = vbob->err;
+		VBOB_Destroy(&vbob);
+		return (err);
 	}
-	vim->vb->flags |= VBOR_ALLOCATED;
+	AZ(VBOB_Finish(vbob, vim->vb));
 
 	if (VBOR_What(vim->vb) != VBOR_ARRAY)
 		return "Not array[0]";

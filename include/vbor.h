@@ -65,15 +65,10 @@ enum vbor_type {
 struct vbor {
 	unsigned	magic;
 #define VBOR_MAGIC	0x97675fd9
+	unsigned	max_depth;
 	const uint8_t	*data;
 	size_t		len;
-	unsigned	max_depth;
-	int 		flags;
-#define VBOR_ALLOCATED	(1 << 0)
-#define VBOR_OWNS_DATA	(1 << 1)
 };
-
-void		VBOR_Destroy(struct vbor **vbor);
 
 int		VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth);
 int		VBOR_Copy(struct vbor *dst, const struct vbor *src);

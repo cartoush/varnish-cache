@@ -347,28 +347,11 @@ VBOR_PrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty)
 }
 
 void
-VBOR_Destroy(struct vbor **vbor)
-{
-	CHECK_OBJ_NOTNULL(*vbor, VBOR_MAGIC);
-	assert((*vbor)->flags & VBOR_ALLOCATED);
-	if ((*vbor)->flags & VBOR_OWNS_DATA && (*vbor)->data != NULL) {
-		free((void *)(*vbor)->data);
-		(*vbor)->data = NULL;
-	}
-	memset(*vbor, 0, sizeof(**vbor));
-	FREE_OBJ(*vbor);
-}
-
-void
 VBOR_Fini(struct vbor *vbor)
 {
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	assert(!(vbor->flags & VBOR_ALLOCATED));
-	if (vbor->flags & VBOR_OWNS_DATA && vbor->data != NULL) {
-		free((void *)vbor->data);
-		vbor->data = NULL;
-	}
-	memset(vbor, 0, sizeof(*vbor));
+	FINI_OBJ(vbor);
 }
 
 static int
