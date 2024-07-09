@@ -637,6 +637,21 @@ VBOR_What(const struct vbor *vbor)
 	return (VBOR_DecodeType(vbor->data[0]));
 }
 
+struct vbob_pos {
+	size_t	pos;
+	size_t	len;
+};
+
+struct vbob {
+	unsigned	magic;
+#define VBOB_MAGIC	0x3abff812
+	const char	*err;
+	struct vsb	*vsb;
+	unsigned	max_depth;
+	unsigned	depth;
+	struct vbob_pos	pos[]; /* XXX: use txt instead of struct vbob_pos? */
+};
+
 static const char *json_err_closing = "Closing character missing";
 
 struct vbob *

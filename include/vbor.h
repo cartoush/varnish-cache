@@ -94,20 +94,7 @@ enum vbor_major_type	VBOR_What(const struct vbor *vbor);
 
 int VBOR_Inside(const struct vbor *vbor, struct vbor *inside);
 
-struct vbob_pos {
-	size_t	pos;
-	size_t	len;
-};
-
-struct vbob {
-	unsigned	magic;
-#define VBOB_MAGIC	0x3abff812
-	const char	*err;
-	struct vsb	*vsb;
-	unsigned	max_depth;
-	unsigned	depth;
-	struct vbob_pos	pos[];
-};
+struct vbob;
 
 struct vbob	*VBOB_Alloc(unsigned max_depth);
 int		VBOB_ParseJSON(struct vbob *vbob, const char *json);
