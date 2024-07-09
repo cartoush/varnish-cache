@@ -36,7 +36,8 @@
 
 struct vsb;
 
-enum vbor_major_type {
+enum vbor_type {
+	/* major types */
 	VBOR_UINT,
 	VBOR_NEGINT,
 	VBOR_BYTE_STRING,
@@ -46,6 +47,7 @@ enum vbor_major_type {
 	VBOR_TAG,
 	VBOR_FLOAT_SIMPLE,
 
+	/* other types */
 	VBOR_SIMPLE,
 	VBOR_HALF_FLOAT,
 	VBOR_FLOAT,
@@ -53,6 +55,8 @@ enum vbor_major_type {
 	VBOR_BOOL,
 	VBOR_NULL,
 	VBOR_UNDEFINED,
+
+	/* varnish pseudo types */
 	VBOR_END,
 	VBOR_UNKNOWN, // XXX
 	VBOR_ERROR,
