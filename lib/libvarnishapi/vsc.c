@@ -272,7 +272,7 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 
 	assert(VBOR_What(vbor) == VBOR_MAP);
 	assert(!VBOR_Inside(vbor, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &kval, &kval_len));
 		switch (VBOC_Next(&vboc, &next)) {
@@ -412,8 +412,7 @@ vsc_unmap_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		sp->npoints = 0;
 		AZ(sp->vb);
 	} else if (sp->type == VSC_SEG_DOCS) {
-		if (sp->vb != NULL)
-			VBOR_Destroy(&sp->vb);
+		VBOR_Fini(sp->vb);
 		AZ(sp->vb);
 		AZ(sp->points);
 	} else {
@@ -477,7 +476,6 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		assert(!VBOB_ParseJSON(vbob, sp->body));
 		ALLOC_OBJ(sp->vb, VBOR_MAGIC);
 		assert(!VBOB_Finish(vbob, sp->vb));
-		sp->vb->flags |= VBOR_ALLOCATED;
 		VBOB_Destroy(&vbob);
 		return (0);
 	}
@@ -506,7 +504,7 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 
 	assert(VBOR_What(spd->vb) == VBOR_MAP);
 	assert(!VBOR_Inside(spd->vb, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		assert(VBOC_Next(&vboc, &next) < VBOR_END);
@@ -536,8 +534,8 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 	assert(VBOR_What(&elem) == VBOR_MAP);
 	assert(!VBOR_Inside(&elem, &next));
 	VBOC_Init(&vboc, &next);
-	for (size_t i = 0; i < elements_nb; i++) {
-		assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(VBOR_What(&next) == VBOR_TEXT_STRING);
 		assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
 		vsc_fill_point(vsc, sp, &next, vsb, pp);
 		pp++;
