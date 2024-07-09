@@ -32,6 +32,7 @@
 
 #include <ctype.h>
 #include <math.h>
+#include <stdint.h>
 #include <string.h>
 
 #include "vdef.h"
@@ -56,6 +57,7 @@ static void
 invert_bytes(uint8_t *val, uint8_t len)
 {
 	uint8_t tmp = 0;
+
 	for (uint8_t i = 0; i < len / 2; i++) {
 		tmp = val[i];
 		val[i] = val[len - i - 1];
@@ -66,6 +68,7 @@ invert_bytes(uint8_t *val, uint8_t len)
 static uint8_t
 VBOR_LengthEncodedSize(size_t size)
 {
+
 	if (size > 0xFFFFFFFF)
 		return (8);
 	if (size > 0xFFFF)
@@ -81,6 +84,7 @@ static uint8_t
 VBOR_EncodedArg(size_t size)
 {
 	enum vbor_argument arg = VBOR_ARG_5BITS;
+
 	if (size > 0xFFFFFFFF)
 		arg = VBOR_ARG_8BYTES;
 	else if (size > 0xFFFF)
@@ -95,48 +99,47 @@ VBOR_EncodedArg(size_t size)
 }
 
 static uint8_t
-VBOR_EncodeType(enum vbor_major_type type)
+VBOR_EncodeType(enum vbor_type type)
 {
+
 	if (type > VBOR_FLOAT_SIMPLE && type < VBOR_END)
 		type = VBOR_FLOAT_SIMPLE;
 	return (type << 5);
 }
 
-static enum vbor_major_type
+static enum vbor_type
 VBOR_DecodeType(uint8_t data)
 {
-	enum vbor_major_type type = data >> 5;
+	enum vbor_type type = data >> 5;
 
-	if (type == VBOR_FLOAT_SIMPLE) {
-		if (data >= (VBOR_FLOAT_SIMPLE << 5) + 28)
-			type = VBOR_ERROR;
-		else {
-			switch (data) {
-			case (VBOR_FLOAT_SIMPLE << 5) + 27:
-				type = VBOR_DOUBLE;
-				break;
-			case (VBOR_FLOAT_SIMPLE << 5) + 26:
-				type = VBOR_FLOAT;
-				break;
-			case (VBOR_FLOAT_SIMPLE << 5) + 25:
-				type = VBOR_ERROR; // Half-float not supported
-				break;
-			case (VBOR_FLOAT_SIMPLE << 5) + 23:
-				type = VBOR_UNDEFINED;
-				break;
-			case (VBOR_FLOAT_SIMPLE << 5) + 22:
-				type = VBOR_NULL;
-				break;
-			case (VBOR_FLOAT_SIMPLE << 5) + 21:
-			case (VBOR_FLOAT_SIMPLE << 5) + 20:
-				type = VBOR_BOOL;
-				break;
-			case (VBOR_FLOAT_SIMPLE << 5) + 24:
-			default:
-				type = VBOR_SIMPLE;
-				break;
-			}
-		}
+	if (type != VBOR_FLOAT_SIMPLE)
+		return (type);
+	if (data >= (VBOR_FLOAT_SIMPLE << 5) + 28)
+		return (VBOR_ERROR);
+	switch (data) {
+	case (VBOR_FLOAT_SIMPLE << 5) + 27:
+		type = VBOR_DOUBLE;
+		break;
+	case (VBOR_FLOAT_SIMPLE << 5) + 26:
+		type = VBOR_FLOAT;
+		break;
+	case (VBOR_FLOAT_SIMPLE << 5) + 25:
+		type = VBOR_ERROR; // Half-float not supported
+		break;
+	case (VBOR_FLOAT_SIMPLE << 5) + 23:
+		type = VBOR_UNDEFINED;
+		break;
+	case (VBOR_FLOAT_SIMPLE << 5) + 22:
+		type = VBOR_NULL;
+		break;
+	case (VBOR_FLOAT_SIMPLE << 5) + 21:
+	case (VBOR_FLOAT_SIMPLE << 5) + 20:
+		type = VBOR_BOOL;
+		break;
+	case (VBOR_FLOAT_SIMPLE << 5) + 24:
+	default:
+		type = VBOR_SIMPLE;
+		break;
 	}
 	return (type);
 }
@@ -156,9 +159,10 @@ VBOR_DecodeArg(uint8_t data)
 }
 
 static size_t
-VBOR_DecodeValueLength(enum vbor_major_type type, enum vbor_argument arg, const uint8_t *data, size_t length)
+VBOR_DecodeValueLength(enum vbor_type type, enum vbor_argument arg, const uint8_t *data, size_t length)
 {
 	size_t len = 0;
+
 	if (type == VBOR_UNKNOWN || arg == VBOR_ARG_UNKNOWN)
 		return (-1);
 	else if (arg == VBOR_ARG_5BITS)
@@ -178,6 +182,7 @@ VBOR_DecodeValueLength(enum vbor_major_type type, enum vbor_argument arg, const 
 int
 VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth)
 {
+
 	AN(vbor);
 	AN(data);
 	if (len == 0)
@@ -186,15 +191,107 @@ VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth
 	vbor->data = data;
 	vbor->len = len;
 	vbor->max_depth = max_depth;
-	vbor->flags = 0;
 	return (0);
 }
 
 int
 VBOR_Copy(struct vbor *dst, const struct vbor *src)
 {
+
 	CHECK_OBJ_NOTNULL(src, VBOR_MAGIC);
 	return (VBOR_Init(dst, src->data, src->len, src->max_depth));
+}
+void
+VBOR_Fini(struct vbor *vbor)
+{
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	FINI_OBJ(vbor);
+}
+
+static int
+VBOR_GetTypeArg(const struct vbor *vbor, enum vbor_type *type, enum vbor_argument *arg)
+{
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	AN(type);
+	AN(arg);
+	*type = VBOR_DecodeType(vbor->data[0]);
+	if (*type == VBOR_UNKNOWN)
+		return (-1);
+	*arg = VBOR_DecodeArg(vbor->data[0]);
+	if (*arg == VBOR_ARG_UNKNOWN)
+		return (-1);
+	return (0);
+}
+
+static int
+VBOR_GetHeader(const struct vbor *vbor, enum vbor_type *type, enum vbor_argument *arg, size_t *len)
+{
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	AN(type);
+	AN(arg);
+	AN(len);
+	if (VBOR_GetTypeArg(vbor, type, arg))
+		return (-1);
+	*len = VBOR_DecodeValueLength(*type, *arg, vbor->data, vbor->len);
+	if (*len == (size_t)-1)
+		return (-1);
+	return (0);
+}
+
+void
+VBOC_Init(struct vboc *vboc, struct vbor *vbor)
+{
+	AN(vboc);
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	vboc->magic = VBOC_MAGIC;
+	vboc->src = vbor;
+	vboc->current[0].magic = 0;
+}
+
+void
+VBOC_Fini(struct vboc *vboc)
+{
+	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
+	memset(vboc, 0, sizeof(*vboc));
+}
+
+enum vbor_type
+VBOC_Next(struct vboc *vboc, struct vbor *vbor)
+{
+	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
+	enum vbor_type type;
+	enum vbor_argument arg;
+	size_t len;
+	size_t skip;
+
+	if (vboc->current->magic == 0) {
+		if (VBOR_Copy(vboc->current, vboc->src))
+			return (VBOR_ERROR);
+		if (VBOR_Copy(vbor, vboc->current))
+			return (VBOR_ERROR);
+		return (VBOR_What(vboc->current));
+	}
+	if (vboc->current->len <= 0) {
+		memcpy(vbor, vboc->current, sizeof (struct vbor));
+		return (VBOR_END);
+	}
+	if (VBOR_GetHeader(vboc->current, &type, &arg, &len))
+		return (VBOR_ERROR);
+	if (VBOR_GetByteSize(vboc->current, &skip))
+		return (VBOR_ERROR);
+	if (vboc->current->len - skip <= 0) {
+		vboc->current->len = 0;
+		memcpy(vbor, vboc->current, sizeof (struct vbor));
+		return (VBOR_END);
+	}
+	if (VBOR_Init(vboc->current, vboc->current->data + skip, vboc->current->len - skip, vboc->current->max_depth) == -1)
+		return (VBOR_ERROR);
+	if (vbor)
+		memcpy(vbor, &vboc->current[0], sizeof(*vbor));
+	return (VBOR_What(vboc->current));
 }
 
 static int
@@ -202,7 +299,7 @@ VBOR_DoPrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty, uns
 {
 	struct vboc vboc;
 	struct vbor next;
-	enum vbor_major_type type;
+	enum vbor_type type;
 
 	switch (VBOR_What(vbor)) {
 	case VBOR_UINT:;
@@ -341,57 +438,21 @@ VBOR_DoPrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty, uns
 int
 VBOR_PrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty)
 {
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	CHECK_OBJ_NOTNULL(json, VSB_MAGIC);
 	return VBOR_DoPrintJSON(vbor, json, pretty, 0);
 }
 
-void
-VBOR_Fini(struct vbor *vbor)
-{
-
-	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	FINI_OBJ(vbor);
-}
-
-static int
-VBOR_GetTypeArg(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_argument *arg)
-{
-	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	AN(type);
-	AN(arg);
-	*type = VBOR_DecodeType(vbor->data[0]);
-	if (*type == VBOR_UNKNOWN)
-		return (-1);
-	*arg = VBOR_DecodeArg(vbor->data[0]);
-	if (*arg == VBOR_ARG_UNKNOWN)
-		return (-1);
-	return (0);
-}
-
-static int
-VBOR_GetHeader(const struct vbor *vbor, enum vbor_major_type *type, enum vbor_argument *arg, size_t *len)
-{
-	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	AN(type);
-	AN(arg);
-	AN(len);
-	if (VBOR_GetTypeArg(vbor, type, arg))
-		return (-1);
-	*len = VBOR_DecodeValueLength(*type, *arg, vbor->data, vbor->len);
-	if (*len == (size_t)-1)
-		return (-1);
-	return (0);
-}
-
 int
 VBOR_GetUInt(const struct vbor *vbor, uint64_t *res)
 {
-	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	AN(res);
-	enum vbor_major_type type = VBOR_UNKNOWN;
+	enum vbor_type type = VBOR_UNKNOWN;
 	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	size_t len = -1;
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	AN(res);
 	if (VBOR_GetHeader(vbor, &type, &arg, &len))
 		return (-1);
 	if (type != VBOR_UINT)
@@ -403,11 +464,12 @@ VBOR_GetUInt(const struct vbor *vbor, uint64_t *res)
 int
 VBOR_GetNegint(const struct vbor *vbor, uint64_t *res)
 {
-	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	AN(res);
-	enum vbor_major_type type = VBOR_UNKNOWN;
+	enum vbor_type type = VBOR_UNKNOWN;
 	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	size_t len = -1;
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	AN(res);
 	if (VBOR_GetHeader(vbor, &type, &arg, &len))
 		return (-1);
 	if (type != VBOR_NEGINT)
@@ -419,10 +481,11 @@ VBOR_GetNegint(const struct vbor *vbor, uint64_t *res)
 int
 VBOR_GetString(const struct vbor *vbor, const char **res, size_t *len)
 {
+	enum vbor_type type = VBOR_UNKNOWN;
+	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(len);
-	enum vbor_major_type type = VBOR_UNKNOWN;
-	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	*len = -1;
 	if (VBOR_GetHeader(vbor, &type, &arg, len))
 		return (-1);
@@ -435,10 +498,11 @@ VBOR_GetString(const struct vbor *vbor, const char **res, size_t *len)
 int
 VBOR_GetByteString(const struct vbor *vbor, const uint8_t **res, size_t *len)
 {
+	enum vbor_type type = VBOR_UNKNOWN;
+	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(len);
-	enum vbor_major_type type = VBOR_UNKNOWN;
-	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	*len = -1;
 	if (VBOR_GetHeader(vbor, &type, &arg, len))
 		return (-1);
@@ -451,10 +515,11 @@ VBOR_GetByteString(const struct vbor *vbor, const uint8_t **res, size_t *len)
 int
 VBOR_GetArraySize(const struct vbor *vbor, size_t *len)
 {
+	enum vbor_type type = VBOR_UNKNOWN;
+	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(len);
-	enum vbor_major_type type = VBOR_UNKNOWN;
-	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	if (VBOR_GetHeader(vbor, &type, &arg, len))
 		return (-1);
 	if (type != VBOR_ARRAY)
@@ -465,10 +530,11 @@ VBOR_GetArraySize(const struct vbor *vbor, size_t *len)
 int
 VBOR_GetMapSize(const struct vbor *vbor, size_t *len)
 {
+	enum vbor_type type = VBOR_UNKNOWN;
+	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(len);
-	enum vbor_major_type type = VBOR_UNKNOWN;
-	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	if (VBOR_GetHeader(vbor, &type, &arg, len))
 		return (-1);
 	if (type != VBOR_MAP)
@@ -479,11 +545,12 @@ VBOR_GetMapSize(const struct vbor *vbor, size_t *len)
 int
 VBOR_GetTag(const struct vbor *vbor, uint64_t *res)
 {
-	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	AN(res);
-	enum vbor_major_type type = VBOR_UNKNOWN;
+	enum vbor_type type = VBOR_UNKNOWN;
 	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	size_t len = -1;
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	AN(res);
 	if (VBOR_GetHeader(vbor, &type, &arg, &len))
 		return (-1);
 	if (type != VBOR_TAG)
@@ -495,10 +562,11 @@ VBOR_GetTag(const struct vbor *vbor, uint64_t *res)
 int
 VBOR_GetSimple(const struct vbor *vbor, uint8_t *res)
 {
+	enum vbor_type type = VBOR_UNKNOWN;
+	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
-	enum vbor_major_type type = VBOR_UNKNOWN;
-	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	if (VBOR_GetTypeArg(vbor, &type, &arg))
 		return (-1);
 	if (type != VBOR_SIMPLE)
@@ -517,10 +585,11 @@ VBOR_GetSimple(const struct vbor *vbor, uint8_t *res)
 int
 VBOR_GetFloat(const struct vbor *vbor, float *res)
 {
+	enum vbor_type type = VBOR_UNKNOWN;
+	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
-	enum vbor_major_type type = VBOR_UNKNOWN;
-	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	if (VBOR_GetTypeArg(vbor, &type, &arg))
 		return (-1);
 	if (type != VBOR_FLOAT)
@@ -535,10 +604,11 @@ VBOR_GetFloat(const struct vbor *vbor, float *res)
 int
 VBOR_GetDouble(const struct vbor *vbor, double *res)
 {
+	enum vbor_type type = VBOR_UNKNOWN;
+	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(res);
-	enum vbor_major_type type = VBOR_UNKNOWN;
-	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	if (VBOR_GetTypeArg(vbor, &type, &arg))
 		return (-1);
 	if (type != VBOR_DOUBLE)
@@ -565,7 +635,7 @@ int
 VBOR_GetByteSize(struct vbor *vbor, size_t *len)
 {
 	size_t acc = 1;
-	enum vbor_major_type type;
+	enum vbor_type type;
 	enum vbor_argument arg;
 	struct vboc vboc;
 	struct vbor next;
@@ -589,7 +659,7 @@ VBOR_GetByteSize(struct vbor *vbor, size_t *len)
 	if (type == VBOR_MAP)
 		*len *= 2;
 	assert(!VBOR_Init(&next, vbor->data + acc, vbor->len - acc, vbor->max_depth - 1));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 
 	for (size_t ctr = 0; ctr < *len; ctr++)
 	{
@@ -608,7 +678,7 @@ VBOR_GetByteSize(struct vbor *vbor, size_t *len)
 int
 VBOR_Inside(const struct vbor *vbor, struct vbor *inside)
 {
-	enum vbor_major_type type = VBOR_ERROR;
+	enum vbor_type type = VBOR_ERROR;
 	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
 	size_t skip = -1;
 	size_t len = -1;
@@ -627,9 +697,10 @@ VBOR_Inside(const struct vbor *vbor, struct vbor *inside)
 	return (0);
 }
 
-enum vbor_major_type
+enum vbor_type
 VBOR_What(const struct vbor *vbor)
 {
+
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	AN(vbor->data);
 	if (vbor->len == 0)
@@ -652,17 +723,26 @@ struct vbob {
 	struct vbob_pos	pos[]; /* XXX: use txt instead of struct vbob_pos? */
 };
 
-static const char *json_err_closing = "Closing character missing";
+static const char *vsb_not_empty_err = "VSB not empty";
+static const char *index_oob_err = "Index out of bound";
+static const char *max_depth_reached_err = "Max depth reached";
+static const char *invalid_simple_value_err = "Invalid simple value";
+static const char *json_closing_err = "Closing character missing";
+static const char *json_bad_number_err = "Bad number";
+static const char *json_unterminated_str_err = "Unterminated string";
+static const char *json_unrecognized_val_err = "Unrecognized value";
+static const char *half_prec_float_no_support_err = "Half-precision floating number not supported";
 
 struct vbob *
 VBOB_Alloc(unsigned max_depth)
 {
 	struct vbob *vbob;
+
 	ALLOC_FLEX_OBJ(vbob, pos, max_depth, VBOB_MAGIC);
 	vbob->vsb = VSB_new_auto();
 	vbob->max_depth = max_depth;
 	vbob->depth = -1;
-	vbob->err = 0;
+	vbob->err = NULL;
 	memset(vbob->pos, 0, sizeof(struct vbob_pos) * max_depth);
 	return (vbob);
 }
@@ -670,6 +750,7 @@ VBOB_Alloc(unsigned max_depth)
 void
 VBOB_Destroy(struct vbob **vbob)
 {
+
 	AN(vbob);
 	CHECK_OBJ_NOTNULL(*vbob, VBOB_MAGIC);
 	VSB_destroy(&(*vbob)->vsb);
@@ -677,13 +758,14 @@ VBOB_Destroy(struct vbob **vbob)
 }
 
 static int
-VBOB_Update_cursor(struct vbob *vbob, enum vbor_major_type type, size_t len)
+VBOB_Update_cursor(struct vbob *vbob, enum vbor_type type, size_t len)
 {
+
 	if (type != VBOR_ARRAY && type != VBOR_MAP) {
 		if (vbob->depth == (unsigned)-1) {
 			if (VSB_len(vbob->vsb) != 0) {
-				vbob->err = -1;
-				return (vbob->err);
+				vbob->err = vsb_not_empty_err;
+				return (-1);
 			}
 			return (0);
 		}
@@ -692,13 +774,13 @@ VBOB_Update_cursor(struct vbob *vbob, enum vbor_major_type type, size_t len)
 	}
 	else {
 		if (vbob->depth == (unsigned)-1 && vbob->pos[0].len != 0 && vbob->pos[0].pos >= vbob->pos[0].len) {
-			vbob->err = -1;
-			return (vbob->err);
+			vbob->err = index_oob_err;
+			return (-1);
 		}
 		vbob->depth++;
 		if (vbob->depth >= vbob->max_depth) {
-			vbob->err = -1;
-			return (vbob->err);
+			vbob->err = max_depth_reached_err;
+			return (-1);
 		}
 		vbob->pos[vbob->depth].len = type == VBOR_ARRAY ? len : len * 2;
 		vbob->pos[vbob->depth].pos = 0;
@@ -710,15 +792,15 @@ VBOB_Update_cursor(struct vbob *vbob, enum vbor_major_type type, size_t len)
 				vbob->pos[vbob->depth].pos += 1;
 		}
 		if (vbob->depth == (unsigned)-1 && vbob->pos[0].pos != 0 && vbob->pos[0].pos > vbob->pos[0].len) {
-			vbob->err = -1;
-			return (vbob->err);
+			vbob->err = index_oob_err;
+			return (-1);
 		}
 	}
 	return (0);
 }
 
 static int
-VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
+VBOB_AddHeader(struct vbob *vbob, enum vbor_type type, size_t len)
 {
 	uint8_t hdr[9] = {0};
 	uint8_t written = 1;
@@ -726,6 +808,8 @@ VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
 	hdr[0] |= VBOR_EncodedArg(len);
 	size_t size_len = VBOR_LengthEncodedSize(len);
 
+	if (vbob->err != NULL)
+		return (-1);
 	if (size_len != 0) {
 		for (size_t i = 0; i < size_len; i++)
 			hdr[i + 1] = (len >> ((size_len - 1 - i) * 8)) & 0xFF;
@@ -737,94 +821,96 @@ VBOB_AddHeader(struct vbob *vbob, enum vbor_major_type type, size_t len)
 int
 VBOB_AddUInt(struct vbob *vbob, uint64_t value)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_UINT, 0);
-	if (!vbob->err)
-		vbob->err = VBOB_AddHeader(vbob, VBOR_UINT, value);
-	return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_UINT, 0) != 0)
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_UINT, value));
 }
 
 int
 VBOB_AddNegint(struct vbob *vbob, uint64_t value)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_NEGINT, 0);
-	if (!vbob->err)
-		vbob->err = VBOB_AddHeader(vbob, VBOR_NEGINT, value - 1);
-	return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_NEGINT, 0) != 0)
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_NEGINT, value - 1));
 }
 
 int
 VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_TEXT_STRING, 0);
-	if (!vbob->err)
-		vbob->err = VBOB_AddHeader(vbob, VBOR_TEXT_STRING, len);
-	if (!vbob->err)
-		vbob->err = VSB_bcat(vbob->vsb, value, len);
-	return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_TEXT_STRING, 0))
+		return (-1);
+	if (VBOB_AddHeader(vbob, VBOR_TEXT_STRING, len))
+		return (-1);
+	return (VSB_bcat(vbob->vsb, value, len));
 }
 
 int
 VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_BYTE_STRING, 0);
-	if (!vbob->err)
-		vbob->err = VBOB_AddHeader(vbob, VBOR_BYTE_STRING, len);
-	if (!vbob->err)
-		vbob->err = VSB_bcat(vbob->vsb, value, len);
-	return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_BYTE_STRING, 0))
+		return (-1);
+	if (VBOB_AddHeader(vbob, VBOR_BYTE_STRING, len))
+		return (-1);
+	return (VSB_bcat(vbob->vsb, value, len));
 }
 
 int
 VBOB_AddArray(struct vbob *vbob, size_t num_items)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_ARRAY, num_items);
-	if (!vbob->err)
-		vbob->err = VBOB_AddHeader(vbob, VBOR_ARRAY, num_items);
-	return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_ARRAY, num_items))
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_ARRAY, num_items));
 }
 
 int
 VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_MAP, num_pairs);
-	if (!vbob->err)
-		vbob->err = VBOB_AddHeader(vbob, VBOR_MAP, num_pairs);
-	return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_MAP, num_pairs))
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_MAP, num_pairs));
 }
 
 int
 VBOB_AddTag(struct vbob *vbob, uint64_t value)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_TAG, 0);
-	if (!vbob->err)
-		vbob->err = VBOB_AddHeader(vbob, VBOR_TAG, value);
-	return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_TAG, 0))
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_TAG, value));
 }
 
 static int
 VBOB_AddHeaderFloat(struct vbob *vbob, char len)
 {
+	char hdr;
+
 	switch (len) {
 	case 8:
 		len = 27;
@@ -840,28 +926,31 @@ VBOB_AddHeaderFloat(struct vbob *vbob, char len)
 	case 2:
 	// Half precision floats not supported (yet?)
 	default:
+		vbob->err = half_prec_float_no_support_err;
 		return (-1);
 	}
-	char hdr = (VBOR_FLOAT_SIMPLE << 5) | len;
+	hdr = (VBOR_FLOAT_SIMPLE << 5) | len;
 	return (VSB_bcat(vbob->vsb, &hdr, 1));
 }
 
 int
 VBOB_AddSimple(struct vbob *vbob, uint8_t value)
 {
-	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0);
 	uint8_t wr[2];
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0))
+		return (-1);
 	wr[0] = VBOR_FLOAT_SIMPLE << 5;
 	if (value <= 23) {
 		wr[0] |= value;
 		return (VSB_bcat(vbob->vsb, wr, 1));
 	}
 	else if (value < 32) {
-		vbob->err = -1;
-		return (vbob->err);
+		vbob->err = invalid_simple_value_err;
+		return (-1);
 	}
 	wr[0] |= 24;
 	wr[1] = value;
@@ -871,33 +960,35 @@ VBOB_AddSimple(struct vbob *vbob, uint8_t value)
 int
 VBOB_AddBool(struct vbob *vbob, unsigned value)
 {
+
 	return (VBOB_AddSimple(vbob, value ? 21 : 20));
 }
 
 int
 VBOB_AddNull(struct vbob *vbob)
 {
+
 	return (VBOB_AddSimple(vbob, 22));
 }
 
 int
 VBOB_AddUndefined(struct vbob *vbob)
 {
+
 	return (VBOB_AddSimple(vbob, 23));
 }
 
 int
 VBOB_AddFloat(struct vbob *vbob, float value)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_AddHeaderFloat(vbob, 4);
-	if (vbob->err)
-		return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0))
+		return (-1);
+	if (VBOB_AddHeaderFloat(vbob, 4))
+		return (-1);
 	invert_bytes((uint8_t *)&value, 4);
 	return VSB_bcat(vbob->vsb, &value, 4);
 }
@@ -905,35 +996,42 @@ VBOB_AddFloat(struct vbob *vbob, float value)
 int
 VBOB_AddDouble(struct vbob *vbob, double value)
 {
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0);
-	if (vbob->err)
-		return (vbob->err);
-	vbob->err = VBOB_AddHeaderFloat(vbob, 8);
-	if (vbob->err)
-		return (vbob->err);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0))
+		return (-1);
+	if (VBOB_AddHeaderFloat(vbob, 8))
+		return (-1);
 	invert_bytes((uint8_t *)&value, 8);
 	return VSB_bcat(vbob->vsb, &value, 8);
+}
+
+const char *
+VBOB_GetError(const struct vbob *vbob)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	return vbob->err;
 }
 
 int
 VBOB_Finish(struct vbob *vbob, struct vbor *vbor)
 {
+	size_t data_len;
+	uint8_t *data;
+
 	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
 	AN(vbor);
 	if (vbob->err || vbob->depth != (unsigned)-1 || VSB_finish(vbob->vsb) == -1)
 		return (-1);
-	size_t data_len = VSB_len(vbob->vsb);
+	data_len = VSB_len(vbob->vsb);
 	if (data_len == (size_t)-1)
 		return (-1);
-	uint8_t *data = malloc(data_len);
+	data = malloc(data_len);
 	memcpy(data, VSB_data(vbob->vsb), data_len);
-	if (VBOR_Init(vbor, data, data_len, vbob->max_depth) == -1)
-		return (-1);
-	vbor->flags |= VBOR_OWNS_DATA;
-	return (0);
+	return (VBOR_Init(vbor, data, data_len, vbob->max_depth));
 }
 
 static unsigned
@@ -948,6 +1046,7 @@ static const char *
 get_str_end(const char *str)
 {
 	unsigned escaped = 0;
+
 	while (*str != '\0') {
 		if (!escaped && *str == '"')
 			break;
@@ -965,6 +1064,9 @@ json_count_elements(const char *json)
 {
 	size_t count = 1;
 	char closing;
+	unsigned depth;
+	char sub_opening;
+	char sub_closing;
 
 	if (*json != '{' && *json != '[')
 		return (-1);
@@ -981,9 +1083,9 @@ json_count_elements(const char *json)
 			continue;
 		}
 		if (*json == '[' || *json == '{') {
-			unsigned depth = 1;
-			char sub_opening = *json;
-			char sub_closing = sub_opening == '[' ? ']' : '}';
+			depth = 1;
+			sub_opening = *json;
+			sub_closing = sub_opening == '[' ? ']' : '}';
 			while (*json != '\0' && depth != 0)
 			{
 				json++;
@@ -1015,10 +1117,15 @@ json_count_elements(const char *json)
 int
 VBOB_ParseJSON(struct vbob *vbob, const char *json)
 {
+	int sign = 1;
+	size_t count;
+	char *endptr;
+	const char *end;
+	double dval;
+	uint64_t val;
+
 	AN(json);
 	AN(vbob);
-	int sign = 1;
-
 	while (*json != '\0' && !vbob->err) {
 		if (isspace(*json) || *json == ',' || *json == ':' || *json == '}' || *json == ']')
 		{
@@ -1027,9 +1134,9 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 		}
 		switch (*json) {
 		case '{':;
-			size_t count = json_count_elements(json);
+			count = json_count_elements(json);
 			if (count == (size_t)-1) {
-				vbob->err = json_err_closing;
+				vbob->err = json_closing_err;
 				break;
 			}
 			VBOB_AddMap(vbob, count);
@@ -1038,7 +1145,7 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 		case '[':
 			count = json_count_elements(json);
 			if (count == (size_t)-1) {
-				vbob->err = json_err_closing;
+				vbob->err = json_closing_err;
 				break;
 			}
 			VBOB_AddArray(vbob, count);
@@ -1052,7 +1159,7 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 			sign = -1;
 			json++;
 			if (!isdigit(*json))
-				vbob->err = JSON_PARSE_BAD_NUMBER;
+				vbob->err = json_bad_number_err;
 			break;
 		case '0':
 		case '1':
@@ -1064,14 +1171,14 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 		case '7':
 		case '8':
 		case '9':;
-			char *endptr = NULL;
+			endptr = NULL;
 			if (is_nb_float(json)) {
-				double dval = strtod(json, &endptr);
+				dval = strtod(json, &endptr);
 				json = endptr;
 				VBOB_AddDouble(vbob, dval * sign);
 			}
 			else {
-				uint64_t val = strtoul(json, &endptr, 10);
+				val = strtoul(json, &endptr, 10);
 				json = endptr;
 				sign == -1 ? VBOB_AddNegint(vbob, val) : VBOB_AddUInt(vbob, val);
 			}
@@ -1079,9 +1186,9 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 			break;
 		case '"':
 			json++;
-			const char *end = get_str_end(json);
+			end = get_str_end(json);
 			if (end == NULL) {
-				vbob->err = JSON_PARSE_UNTERMINATED_STR;
+				vbob->err = json_unterminated_str_err;
 				break;
 			}
 			VBOB_AddString(vbob, json, end - json);
@@ -1103,68 +1210,15 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 				json += sizeof("null");
 			}
 			else
-				vbob->err = JSON_PARSE_UNRECOGNIZED_VAL;
+				vbob->err = json_unrecognized_val_err;
 			break;
 		default:
-			vbob->err = JSON_PARSE_UNRECOGNIZED_VAL;
+			vbob->err = json_unrecognized_val_err;
 		}
 	}
-	return (vbob->err);
+	return (-1);
 }
 
-int
-VBOC_Init(struct vboc *vboc, struct vbor *vbor)
-{
-	AN(vboc);
-	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
-	vboc->magic = VBOC_MAGIC;
-	vboc->src = vbor;
-	vboc->current[0].magic = 0;
-	return (0);
-}
-
-void
-VBOC_Fini(struct vboc *vboc)
-{
-	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
-	memset(vboc, 0, sizeof(*vboc));
-}
-
-enum vbor_major_type
-VBOC_Next(struct vboc *vboc, struct vbor *vbor)
-{
-	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
-	enum vbor_major_type type;
-	enum vbor_argument arg;
-	size_t len;
-	size_t skip;
-
-	if (vboc->current->magic == 0) {
-		if (VBOR_Copy(vboc->current, vboc->src))
-			return (VBOR_ERROR);
-		if (VBOR_Copy(vbor, vboc->current))
-			return (VBOR_ERROR);
-		return (VBOR_What(vboc->current));
-	}
-	if (vboc->current->len <= 0) {
-		memcpy(vbor, vboc->current, sizeof (struct vbor));
-		return (VBOR_END);
-	}
-	if (VBOR_GetHeader(vboc->current, &type, &arg, &len))
-		return (VBOR_ERROR);
-	if (VBOR_GetByteSize(vboc->current, &skip))
-		return (VBOR_ERROR);
-	if (vboc->current->len - skip <= 0) {
-		vboc->current->len = 0;
-		memcpy(vbor, vboc->current, sizeof (struct vbor));
-		return (VBOR_END);
-	}
-	if (VBOR_Init(vboc->current, vboc->current->data + skip, vboc->current->len - skip, vboc->current->max_depth) == -1)
-		return (VBOR_ERROR);
-	if (vbor)
-		memcpy(vbor, &vboc->current[0], sizeof(*vbor));
-	return (VBOR_What(vboc->current));
-}
 
 #ifdef VBOR_TEST
 
@@ -1210,7 +1264,7 @@ main(void)
 	assert(VBOR_GetArraySize(&vbor, &num_items) == 0);
 	assert(num_items == 4);
 	assert(!VBOR_Inside(&vbor, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	printf("vbor : %ld next : %ld\n", vbor.len, next.len);
 	assert(VBOC_Next(&vboc, &next) == VBOR_UINT);
 	size_t len = 0;
@@ -1436,7 +1490,7 @@ main(void)
 	assert(VBOR_GetByteSize(&vbor, &len) == 0);
 	assert(len == vbor.len);
 
-	enum vbor_major_type types[] = {
+	enum vbor_type types[] = {
 		VBOR_FLOAT,
 		VBOR_DOUBLE,
 		VBOR_SIMPLE,

@@ -90,7 +90,7 @@ int	VBOR_GetDouble(const struct vbor *vbor, double *res);
 
 int	VBOR_GetByteSize(struct vbor *vbor, size_t *len);
 
-enum vbor_major_type	VBOR_What(const struct vbor *vbor);
+enum vbor_type	VBOR_What(const struct vbor *vbor);
 
 int VBOR_Inside(const struct vbor *vbor, struct vbor *inside);
 
@@ -113,6 +113,8 @@ int	VBOB_AddUndefined(struct vbob *vbob);
 int	VBOB_AddFloat(struct vbob *vbob, float value);
 int	VBOB_AddDouble(struct vbob *vbob, double value);
 
+const char *VBOB_GetError(const struct vbob *vbob);
+
 int	VBOB_Finish(struct vbob *vbob, struct vbor *vbor);
 void	VBOB_Destroy(struct vbob **vbob);
 
@@ -124,9 +126,9 @@ struct vboc
 	struct vbor	current[1];
 };
 
-int			VBOC_Init(struct vboc *vboc, struct vbor *vbor);
-void 			VBOC_Fini(struct vboc *vboc);
+void			VBOC_Init(struct vboc *vboc, struct vbor *vbor);
+void			VBOC_Fini(struct vboc *vboc);
 
-enum vbor_major_type	VBOC_Next(struct vboc *vboc, struct vbor *vbor);
+enum vbor_type	VBOC_Next(struct vboc *vboc, struct vbor *vbor);
 
 #endif
