@@ -132,14 +132,6 @@ vcc_Extract_JSON(struct vmod_import *vim, const char *filename)
 	return (0);
 }
 
-static const char *jsn_parse_str[] = {
-	NULL,
-	"Unrecognized value",
-	"Bad number",
-	"Unterminated string",
-	"Closing character missing"
-};
-
 static const char *
 vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 {

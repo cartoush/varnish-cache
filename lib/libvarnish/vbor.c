@@ -654,6 +654,8 @@ VBOR_What(const struct vbor *vbor)
 	return (VBOR_DecodeType(vbor->data[0]));
 }
 
+static const char *json_err_closing = "Closing character missing";
+
 struct vbob *
 VBOB_Alloc(unsigned max_depth)
 {
@@ -1029,7 +1031,7 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 		case '{':;
 			size_t count = json_count_elements(json);
 			if (count == (size_t)-1) {
-				vbob->err = JSON_PARSE_MISSING_CLOSING_CH;
+				vbob->err = json_err_closing;
 				break;
 			}
 			VBOB_AddMap(vbob, count);
@@ -1038,7 +1040,7 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 		case '[':
 			count = json_count_elements(json);
 			if (count == (size_t)-1) {
-				vbob->err = JSON_PARSE_MISSING_CLOSING_CH;
+				vbob->err = json_err_closing;
 				break;
 			}
 			VBOB_AddArray(vbob, count);
