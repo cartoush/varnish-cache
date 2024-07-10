@@ -456,7 +456,8 @@ vcc_vim_destroy(struct vmod_import **vimp)
 	TAKE_OBJ_NOTNULL(vim, vimp, VMOD_IMPORT_MAGIC);
 	if (vim->path)
 		free(vim->path);
-	VBOR_Fini(vim->vb);
+	if (vim->vb->magic == VBOR_MAGIC)
+		VBOR_Fini(vim->vb);
 	if (vim->json)
 		VSB_destroy(&vim->json);
 	FREE_OBJ(vim);

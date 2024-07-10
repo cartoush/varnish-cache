@@ -39,11 +39,12 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "vbor.h"
+
 #include "mgt/mgt.h"
 #include "mgt/mgt_vcl.h"
 #include "common/heritage.h"
 
-#include "vbor.h"
 #include "vcli_serve.h"
 #include "vct.h"
 #include "vev.h"
@@ -179,7 +180,6 @@ mgt_vcl_dep_add(struct vclprog *vp_from, struct vclprog *vp_to)
 	VTAILQ_INSERT_TAIL(&vp_from->dfrom, vd, lfrom);
 	vd->to = vp_to;
 	VTAILQ_INSERT_TAIL(&vp_to->dto, vd, lto);
-	vd->vb = NULL;
 	vp_to->nto++;
 	return (vd);
 }
@@ -194,8 +194,8 @@ mgt_vcl_dep_del(struct vcldep *vd)
 	vd->to->nto--;
 	if (vd->to->nto == 0)
 		mgt_vcl_set_cooldown(vd->to, VTIM_mono());
-	if (vd->vb != NULL)
-		FREE_OBJ(vd->vb);
+	if (vd->vb->magic == VBOR_MAGIC)
+		VBOR_Fini(vd->vb);
 	FREE_OBJ(vd);
 }
 

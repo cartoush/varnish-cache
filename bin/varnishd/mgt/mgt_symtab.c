@@ -39,10 +39,11 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+#include "vbor.h"
+
 #include "mgt/mgt.h"
 #include "mgt/mgt_vcl.h"
 
-#include "vbor.h"
 #include "vcli_serve.h"
 
 /*--------------------------------------------------------------------*/
@@ -53,7 +54,6 @@ mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map)
 	struct vclprog *vp2 = NULL;
 	struct vboc vboc;
 	struct vbor next;
-	struct vbor *res = NULL;
 	const char *name;
 	size_t name_len = 0;
 
@@ -62,7 +62,7 @@ mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map)
 
 	assert(VBOR_What(vbor_map) == VBOR_MAP);
 	assert(!VBOR_Inside(vbor_map, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &name, &name_len));
 		assert(VBOC_Next(&vboc, &next) < VBOR_END);
@@ -74,9 +74,7 @@ mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map)
 		}
 	}
 	CHECK_OBJ_NOTNULL(vp2, VCLPROG_MAGIC);
-	ALLOC_OBJ(res, VBOR_MAGIC);
-	VBOR_Copy(res, vbor_map);
-	mgt_vcl_dep_add(vp1, vp2)->vb = res;
+	VBOR_Copy(mgt_vcl_dep_add(vp1, vp2)->vb, vbor_map);
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&next);
 }
@@ -140,7 +138,7 @@ mgt_vcl_import_vmod(struct vclprog *vp, struct vbor *vbor_map)
 
 	assert(VBOR_What(vbor_map) == VBOR_MAP);
 	assert(!VBOR_Inside(vbor_map, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		const char *val;
 		size_t val_len;
@@ -221,13 +219,10 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 		WRONG("FATAL: Symtab parse error\n");
 	VBOB_Destroy(&vbob);
 	CHECK_OBJ_NOTNULL(&vbor, VBOR_MAGIC);
-	ALLOC_OBJ(vp->symtab, VBOR_MAGIC);
-	AN(vp->symtab);
 	VBOR_Copy(vp->symtab, &vbor);
-	vp->symtab->flags = VBOR_ALLOCATED | VBOR_OWNS_DATA;
 	assert(VBOR_What(&vbor) == VBOR_ARRAY);
 	assert(!VBOR_Inside(&vbor, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		const char *dir_val = NULL;
 		size_t dir_val_len = 0;
@@ -236,7 +231,7 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 
 		assert(VBOR_What(&next) == VBOR_MAP);
 		assert(!VBOR_Inside(&next, &next));
-		assert(!VBOC_Init(&vboc2, &next));
+		VBOC_Init(&vboc2, &next);
 		while (VBOC_Next(&vboc2, &next) < VBOR_END) {
 			const char *val;
 			size_t val_len;
@@ -268,8 +263,8 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 void
 mgt_vcl_symtab_clean(struct vclprog *vp)
 {
-	if (vp->symtab)
-		VBOR_Destroy(&vp->symtab);
+	if (vp->symtab->magic == VBOR_MAGIC)
+		VBOR_Fini(vp->symtab);
 }
 
 /*--------------------------------------------------------------------*/
@@ -281,14 +276,14 @@ mcf_vcl_vbor_dump_map(struct cli *cli, struct vbor *vbor, int indent)
 	struct vbor next;
 	const char *sval;
 	size_t val_len;
-	enum vbor_major_type type;
+	enum vbor_type type;
 	unsigned bval;
 	uint64_t uval;
 
 	VCLI_Out(cli, "%*s{object}\n", indent, "");
 	assert(VBOR_What(vbor) == VBOR_MAP);
 	assert(!VBOR_Inside(vbor, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(!VBOR_GetString(&next, &sval, &val_len));
 		VCLI_Out(cli, "%*s[\"%.*s\"]: ", indent + 2, "", (int)val_len, sval);
@@ -317,7 +312,7 @@ mcf_vcl_vbor_dump_map(struct cli *cli, struct vbor *vbor, int indent)
 static void
 mcf_vcl_vbor_dump(struct cli *cli, const struct vbor *vbor, int indent)
 {
-	enum vbor_major_type type;
+	enum vbor_type type;
 	struct vboc vboc;
 	struct vbor next;
 
@@ -332,7 +327,7 @@ mcf_vcl_vbor_dump(struct cli *cli, const struct vbor *vbor, int indent)
 		assert(!VBOR_Copy(&next, vbor));
 	else
 		WRONG("Bad vbor type");
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	while (VBOC_Next(&vboc, &next) < VBOR_END) {
 		assert(VBOR_What(&next) == VBOR_MAP);
 		mcf_vcl_vbor_dump_map(cli, &next, indent + 2);
@@ -358,7 +353,7 @@ mcf_vcl_symtab(struct cli *cli, const char * const *av, void *priv)
 			VCLI_Out(cli, "  imports from:\n");
 			VTAILQ_FOREACH(vd, &vp->dfrom, lfrom) {
 				VCLI_Out(cli, "    %s\n", vd->to->name);
-				if (vd->vb)
+				if (vd->vb->magic == VBOR_MAGIC)
 					mcf_vcl_vbor_dump(cli, vd->vb, 6);
 			}
 		}
@@ -366,11 +361,11 @@ mcf_vcl_symtab(struct cli *cli, const char * const *av, void *priv)
 			VCLI_Out(cli, "  exports to:\n");
 			VTAILQ_FOREACH(vd, &vp->dto, lto) {
 				VCLI_Out(cli, "    %s\n", vd->from->name);
-				if (vd->vb)
+				if (vd->vb->magic == VBOR_MAGIC)
 					mcf_vcl_vbor_dump(cli, vd->vb, 6);
 			}
 		}
-		if (vp->symtab != NULL) {
+		if (vp->symtab->magic == VBOR_MAGIC) {
 			VCLI_Out(cli, "  symtab:\n");
 			mcf_vcl_vbor_dump(cli, vp->symtab, 4);
 		}

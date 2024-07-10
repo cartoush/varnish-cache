@@ -265,11 +265,11 @@ command_generator(const char *text, int state)
 			return (NULL);
 		assert(VBOR_What(&cmds) == VBOR_ARRAY);
 		assert(!VBOR_Inside(&cmds, &next));
-		assert(!VBOC_Init(&vboc, &next));
+		VBOC_Init(&vboc, &next);
 		assert(VBOC_Next(&vboc, &next) == VBOR_UINT);
 		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
 		assert(!VBOR_Inside(&next, &next));
-		assert(!VBOC_Init(&vboc2, &next));
+		VBOC_Init(&vboc2, &next);
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(VBOC_Next(&vboc, &next) == VBOR_DOUBLE);
@@ -279,7 +279,7 @@ command_generator(const char *text, int state)
 		size_t str_len;
 
 		assert(!VBOR_Inside(&next, &next));
-		assert(!VBOC_Init(&vboc2, &next));
+		VBOC_Init(&vboc2, &next);
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(VBOR_GetString(&next, &str, &str_len) == 0);
 		assert(str_len == sizeof("request") - 1 && !strncmp(str, "request", sizeof("request") - 1));

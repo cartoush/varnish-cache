@@ -1216,7 +1216,7 @@ VBOB_ParseJSON(struct vbob *vbob, const char *json)
 			vbob->err = json_unrecognized_val_err;
 		}
 	}
-	return (-1);
+	return (vbob->err == NULL ? 0 : -1);
 }
 
 

@@ -50,7 +50,7 @@ struct vcldep {
 	VTAILQ_ENTRY(vcldep)	lfrom;
 	struct vclprog		*to;
 	VTAILQ_ENTRY(vcldep)	lto;
-	struct vbor		*vb;
+	struct vbor		vb[1];
 };
 
 struct vclprog {
@@ -62,7 +62,7 @@ struct vclprog {
 	unsigned		warm;
 	const struct vclstate	*state;
 	double			go_cold;
-	struct vbor		*symtab;
+	struct vbor		symtab[1];
 	VTAILQ_HEAD(, vcldep)	dfrom;
 	VTAILQ_HEAD(, vcldep)	dto;
 	int			nto;

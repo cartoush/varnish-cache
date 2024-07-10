@@ -445,7 +445,7 @@ vcc_priv_arg(struct vcc *tl, const char *p, struct symbol *sym)
 
 struct func_arg {
 	vcc_type_t		type;
-	const struct vbor	*enums;
+	struct vbor		enums[1];
 	const char		*cname;
 	const char		*name;
 	const char		*val;
@@ -482,7 +482,7 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 
 		assert(VBOR_What(fa->enums));
 		assert(!VBOR_Inside(fa->enums, &next));
-		assert(!VBOC_Init(&vboc, &next));
+		VBOC_Init(&vboc, &next);
 		while (VBOC_Next(&vboc, &next) < VBOR_END) {
 			assert(!VBOR_GetString(&next, &val, &val_len));
 			val = strndup(val, val_len);
@@ -497,7 +497,7 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 			VSB_cat(tl->sb, "  Expected one of:\n");
 
 			assert(!VBOR_Inside(fa->enums, &next));
-			assert(!VBOC_Init(&vboc, &next));
+			VBOC_Init(&vboc, &next);
 			while (VBOC_Next(&vboc, &next) < VBOR_END) {
 				assert(!VBOR_GetString(&next, &val, &val_len));
 				VSB_printf(tl->sb, "\t%.*s\n", (int)val_len, val);
@@ -547,7 +547,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	assert(VBOR_What(vbor) == VBOR_ARRAY);
 	assert(!VBOR_GetArraySize(vbor, &val_len));
 	assert(!VBOR_Inside(vbor, &next));
-	assert(!VBOC_Init(&vboc, &next));
+	VBOC_Init(&vboc, &next);
 	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
 	assert(!VBOR_GetArraySize(&next, &val_len));
 
@@ -602,7 +602,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 
 		assert(!VBOR_GetArraySize(&next, &arr_len));
 		assert(!VBOR_Inside(&next, &next));
-		assert(!VBOC_Init(&vboc2, &next));
+		VBOC_Init(&vboc2, &next);
 		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (!memcmp(val, "PRIV_", 5)) {
@@ -619,7 +619,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		AN(fa->type);
 		assert(arr_len < 6);
 		if (arr_len >= 2) {
-			enum vbor_major_type type = VBOC_Next(&vboc2, &next);
+			enum vbor_type type = VBOC_Next(&vboc2, &next);
 			assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
 			if (type == VBOR_TEXT_STRING) {
 				assert(!VBOR_GetString(&next, &val, &val_len));
@@ -650,12 +650,8 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 				else
 					fa->val = NULL;
 				if (arr_len >= 4) {
-					struct vbor *vb;
 					assert(VBOC_Next(&vboc2, &next) < VBOR_END);
-					ALLOC_OBJ(vb, VBOR_MAGIC);
-					VBOR_Copy(vb, &next);
-					vb->flags = VBOR_ALLOCATED;
-					fa->enums = vb;
+					VBOR_Copy(fa->enums, &next);
 					if (arr_len >= 5) {
 						unsigned b = 0;
 						assert(VBOC_Next(&vboc2, &next) < VBOR_END);

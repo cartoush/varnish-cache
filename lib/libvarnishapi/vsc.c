@@ -413,7 +413,6 @@ vsc_unmap_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		AZ(sp->vb);
 	} else if (sp->type == VSC_SEG_DOCS) {
 		VBOR_Fini(sp->vb);
-		AZ(sp->vb);
 		AZ(sp->points);
 	} else {
 		WRONG("Invalid segment type");
