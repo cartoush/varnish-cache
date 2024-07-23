@@ -91,7 +91,7 @@ alias_sym(struct vcc *tl, const struct symbol *psym, const struct vbor *v)
 
 	VCC_SymName(buf, psym);
 
-	VBOC_Init(&vboc, (struct vbor*)v);
+	VBOC_Init(&vboc, v);
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 
@@ -189,7 +189,7 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 	buf = VSB_new_auto();
 	AN(buf);
 
-	VBOC_Init(&vboc, (struct vbor*)v);
+	VBOC_Init(&vboc, v);
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
 
@@ -255,11 +255,10 @@ vcc_VmodSymbols_sub(struct vcc *tl, const struct symbol *sym, unsigned ll)
 		assert(VBOR_What(vbor) == VBOR_ARRAY);
 		assert(!VBOR_Inside(vbor, &next));
 		VBOC_Init(&vboc, &next);
-	} else if (sym->kind != SYM_OBJECT) {
+	} else if (sym->kind != SYM_OBJECT)
 		WRONG("symbol kind");
-	} else {
-		VBOC_Init(&vboc, (struct vbor*)vbor);
-	}
+	else
+		VBOC_Init(&vboc, vbor);
 
 	size_t ii = 0;
 	while ((type = VBOC_Next(&vboc, &next)) < VBOR_END && ii < ll) {
@@ -346,7 +345,7 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	isym->vmod_name = osym->vmod_name;
 	isym->eval_priv = vbor;
 
-	VBOC_Init(&vboc, (struct vbor*)vbor);
+	VBOC_Init(&vboc, vbor);
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
 	assert(!VBOR_Inside(&next, &next));

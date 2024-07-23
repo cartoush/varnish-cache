@@ -56,6 +56,7 @@ mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map)
 	struct vbor next;
 	const char *name;
 	size_t name_len = 0;
+	char *aname = NULL;
 
 	CHECK_OBJ_NOTNULL(vp1, VCLPROG_MAGIC);
 	CHECK_OBJ_NOTNULL(vbor_map, VBOR_MAGIC);
@@ -68,9 +69,9 @@ mgt_vcl_import_vcl(struct vclprog *vp1, struct vbor *vbor_map)
 		assert(VBOC_Next(&vboc, &next) < VBOR_END);
 		if (name_len == sizeof("name") - 1 && !strncmp(name, "name", name_len)) {
 			assert(!VBOR_GetString(&next, &name, &name_len));
-			name = strndup(name, name_len);
-			vp2 = mcf_vcl_byname(name);
-			free((void*)name);
+			aname = strndup(name, name_len);
+			vp2 = mcf_vcl_byname(aname);
+			free(aname);
 		}
 	}
 	CHECK_OBJ_NOTNULL(vp2, VCLPROG_MAGIC);

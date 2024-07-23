@@ -475,6 +475,7 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 	struct vbor next;
 	const char *val = NULL;
 	size_t val_len = 0;
+	char *aval = NULL;
 
 	if (fa->type == ENUM) {
 		ExpectErr(tl, ID);
@@ -484,13 +485,13 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 		assert(!VBOR_Inside(fa->enums, &next));
 		VBOC_Init(&vboc, &next);
 		while (VBOC_Next(&vboc, &next) < VBOR_END) {
-			assert(!VBOR_GetString(&next, &val, &val_len));
-			val = strndup(val, val_len);
-			if (vcc_IdIs(tl->t, val)) {
-				free((void*)val);
+			assert(!VBOR_GetString(&next, (const char**)&val, &val_len));
+			aval = strndup(val, val_len);
+			if (vcc_IdIs(tl->t, aval)) {
+				free(aval);
 				break;
 			}
-			free((void*)val);
+			free(aval);
 		}
 		if (VBOR_What(&next) == VBOR_END) {
 			VSB_cat(tl->sb, "Wrong enum value.");
@@ -499,7 +500,7 @@ vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 			assert(!VBOR_Inside(fa->enums, &next));
 			VBOC_Init(&vboc, &next);
 			while (VBOC_Next(&vboc, &next) < VBOR_END) {
-				assert(!VBOR_GetString(&next, &val, &val_len));
+				assert(!VBOR_GetString(&next, (const char**)&val, &val_len));
 				VSB_printf(tl->sb, "\t%.*s\n", (int)val_len, val);
 			}
 			vcc_ErrWhere(tl, tl->t);
@@ -538,6 +539,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	struct vbor next;
 	const char *val = NULL;
 	size_t val_len = 0;
+	char *aval = NULL;
 	const char *sa, *extra_sep;
 	char ssa[64];
 	int n;
@@ -554,9 +556,9 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	assert(!VBOR_Inside(&next, &next));
 	assert(VBOR_What(&next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	val = strndup(val, val_len);
-	rfmt = VCC_Type(val);
-	free((void*)val);
+	aval = strndup(val, val_len);
+	rfmt = VCC_Type(aval);
+	free(aval);
 	AN(rfmt);
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);

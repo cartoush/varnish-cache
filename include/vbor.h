@@ -88,7 +88,7 @@ int	VBOR_GetBool(const struct vbor *vbor, unsigned *res);
 int	VBOR_GetFloat(const struct vbor *vbor, float *res);
 int	VBOR_GetDouble(const struct vbor *vbor, double *res);
 
-int	VBOR_GetByteSize(struct vbor *vbor, size_t *len);
+int	VBOR_GetByteSize(const struct vbor *vbor, size_t *len);
 
 enum vbor_type	VBOR_What(const struct vbor *vbor);
 
@@ -120,13 +120,13 @@ void	VBOB_Destroy(struct vbob **vbob);
 
 struct vboc
 {
-	unsigned	magic;
-#define VBOC_MAGIC	0x863baac8
-	struct vbor	*src;
-	struct vbor	current[1];
+	unsigned		magic;
+#define VBOC_MAGIC		0x863baac8
+	const struct vbor	*src;
+	struct vbor		current[1];
 };
 
-void			VBOC_Init(struct vboc *vboc, struct vbor *vbor);
+void			VBOC_Init(struct vboc *vboc, const struct vbor *vbor);
 void			VBOC_Fini(struct vboc *vboc);
 
 enum vbor_type	VBOC_Next(struct vboc *vboc, struct vbor *vbor);

@@ -242,7 +242,7 @@ VBOR_GetHeader(const struct vbor *vbor, enum vbor_type *type, enum vbor_argument
 }
 
 void
-VBOC_Init(struct vboc *vboc, struct vbor *vbor)
+VBOC_Init(struct vboc *vboc, const struct vbor *vbor)
 {
 	AN(vboc);
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
@@ -345,7 +345,7 @@ VBOR_DoPrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty, uns
 		for (size_t i = 0; i < num_items; i++) {
 			assert(VBOC_Next(&vboc, &next) < VBOR_END);
 			if (pretty) {
-				for (size_t i = 0; i < tabs; i++)
+				for (size_t j = 0; j < tabs; j++)
 					VSB_putc(json, '\t');
 			}
 			if (VBOR_DoPrintJSON(&next, json, pretty, tabs))
@@ -376,7 +376,7 @@ VBOR_DoPrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty, uns
 			if (type != VBOR_TEXT_STRING && type != VBOR_BYTE_STRING)
 				return (-1);
 			if (pretty) {
-				for (size_t i = 0; i < tabs; i++)
+				for (size_t j = 0; j < tabs; j++)
 					VSB_putc(json, '\t');
 			}
 			if (VBOR_DoPrintJSON(&next, json, pretty, tabs))
@@ -632,7 +632,7 @@ VBOR_GetBool(const struct vbor *vbor, unsigned *res)
 }
 
 int
-VBOR_GetByteSize(struct vbor *vbor, size_t *len)
+VBOR_GetByteSize(const struct vbor *vbor, size_t *len)
 {
 	size_t acc = 1;
 	enum vbor_type type;
@@ -690,7 +690,7 @@ VBOR_Inside(const struct vbor *vbor, struct vbor *inside)
 	if (type != VBOR_ARRAY && type != VBOR_MAP)
 		return (-1);
 	skip = VBOR_LengthEncodedSize(skip) + 1;
-	if (VBOR_GetByteSize((struct vbor*)vbor, &len))
+	if (VBOR_GetByteSize(vbor, &len))
 		return (-1);
 	if (VBOR_Init(inside, vbor->data + skip, len - skip, vbor->max_depth - 1))
 		return (-1);
@@ -1504,12 +1504,9 @@ main(void)
 	assert(VBOR_What(&vbor) == VBOR_ARRAY);
 	VBOR_Inside(&vbor, &next);
 	VBOC_Init(&vboc, &next);
-	int i = 0;
-	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+	for (size_t i = 0; VBOC_Next(&vboc, &next) < VBOR_END; i++) {
 		assert(VBOR_What(&next) == types[i]);
-		i++;
 	}
-	printf("\n");
 	VBOC_Fini(&vboc);
 	VBOR_Fini(&vbor);
 

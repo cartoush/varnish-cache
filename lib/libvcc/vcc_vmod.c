@@ -140,6 +140,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 	struct vbor next;
 	const char *val = NULL, *err;
 	size_t val_len = 0;
+	char *aval = NULL;
 	char *p;
 
 	vbob = VBOB_Alloc(10);
@@ -167,10 +168,10 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	val = strndup(val, val_len);
-	AN(val);
-	vim->vmod_syntax = strtod(val, NULL);
-	free((void*)val);
+	aval = strndup(val, val_len);
+	AN(aval);
+	vim->vmod_syntax = strtod(aval, NULL);
+	free(aval);
 	assert(vim->vmod_syntax == 1.0);
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
@@ -188,19 +189,19 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	val = strndup(val, val_len);
-	AN(val);
-	vim->major = strtoul(val, &p, 10);
+	aval = strndup(val, val_len);
+	AN(aval);
+	vim->major = strtoul(aval, &p, 10);
 	assert(p == NULL || *p == '\0' || *p == 'U');
-	free((void*)val);
+	free(aval);
 
 	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	val = strndup(val, val_len);
-	AN(val);
-	vim->minor = strtoul(val, &p, 10);
+	aval = strndup(val, val_len);
+	AN(aval);
+	vim->minor = strtoul(aval, &p, 10);
 	assert(p == NULL || *p == '\0' || *p == 'U');
-	free((void*)val);
+	free(aval);
 
 	if (vim->major == 0 && vim->minor == 0 &&
 	    strcmp(vim->abi, VMOD_ABI_Version)) {
@@ -327,22 +328,19 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 	size_t val_len = 0;
 
 	(void)vim;
-	VBOC_Init(&vboc, (struct vbor*)vb);
+	VBOC_Init(&vboc, vb);
 	assert(!VBOR_GetString(vb, &val, &val_len));
 
 	char *cproto = NULL;
 	size_t proto_len = 0;
 	while (VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING) {
-		const char *val = NULL;
-		size_t val_len = 0;
-
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (proto_len < val_len) {
 			cproto = malloc(val_len + 1);
 			proto_len = val_len;
 		}
 		char *p = cproto;
- 		for (size_t i = 0; i < val_len; i++, p++) {
+		for (size_t i = 0; i < val_len; i++, p++) {
 			if (val[i] == '\\') {
 				if (val[i + 1] == 't') {
 					*p = '\t';

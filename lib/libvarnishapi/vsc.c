@@ -372,7 +372,7 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	else
 		WRONG("Illegal level");
 
-	point->point.ptr = (volatile void*)(seg->body + index);
+	point->point.ptr = (const volatile void*)(seg->body + index);
 	point->point.raw = vsc->raw;
 }
 
