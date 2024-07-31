@@ -152,6 +152,7 @@ vcc_ParseJSON(const struct vcc *tl, const char *jsn, struct vmod_import *vim)
 		return (err);
 	}
 	AZ(VBOB_Finish(vbob, vim->vb));
+	VBOB_Destroy(&vbob);
 
 	if (VBOR_What(vim->vb) != VBOR_ARRAY)
 		return ("Not array[0]");
@@ -336,7 +337,7 @@ vcc_do_cproto(struct vcc *tl, const struct vmod_import *vim,
 	while (VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING) {
 		assert(!VBOR_GetString(&next, &val, &val_len));
 		if (proto_len < val_len) {
-			cproto = malloc(val_len + 1);
+			cproto = realloc(cproto, val_len + 1);
 			proto_len = val_len;
 		}
 		char *p = cproto;

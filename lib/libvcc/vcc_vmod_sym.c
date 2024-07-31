@@ -178,6 +178,7 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 	struct vbor next;
 	const char *val = NULL;
 	size_t val_len = 0;
+	char *type = NULL;
 
 	CHECK_OBJ_NOTNULL(vv, VBOR_MAGIC);
 
@@ -231,7 +232,9 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 	assert(!VBOR_Inside(&next, &next));
 	assert(VBOR_What(&next) == VBOR_TEXT_STRING);
 	assert(!VBOR_GetString(&next, &val, &val_len));
-	sym->type = VCC_Type(strndup(val, val_len));
+	type = strndup(val, val_len);
+	sym->type = VCC_Type(type);
+	free(type);
 	AN(sym->type);
 	sym->r_methods = VCL_MET_TASK_ALL;
 	func_restrict(tl, sym, kind, vv);

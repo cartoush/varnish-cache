@@ -340,7 +340,7 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	point->point.name = point->name;
 
 	point->point.ctype = strndup(ctype, ctype_len);
-	point->point.sdesc = strndup(oneliner,  oneliner_len);
+	point->point.sdesc = strndup(oneliner, oneliner_len);
 	point->point.ldesc = strndup(docs, docs_len);
 
 	if (sizeof("counter") - 1 == type_len && !strncmp(type, "counter", type_len))

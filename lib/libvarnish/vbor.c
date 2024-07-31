@@ -1304,6 +1304,7 @@ main(void)
 	assert(len == 5);
 	VBOC_Fini(&vboc2);
 	VBOC_Fini(&vboc);
+	free(TRUST_ME(vbor.data));
 	VBOR_Fini(&vbor);
 
 	const char *json = "{\"a\": 5000000000, \"b\": [-3000, \"hello\", 256000, \"world\"], \"g\": \"goodbye\"}";
@@ -1332,6 +1333,7 @@ main(void)
 	printf("%s\n", VSB_data(vsb));
 	VSB_destroy(&vsb);
 
+	free(TRUST_ME(vbor.data));
 	VBOR_Fini(&vbor);
 
 	const char *json_2 = "[true, false, null, 340282.343750]";
@@ -1350,6 +1352,7 @@ main(void)
 	printf("%s\n", VSB_data(vsb));
 	VSB_destroy(&vsb);
 
+	free(TRUST_ME(vbor.data));
 	VBOR_Fini(&vbor);
 
 	vbob = VBOB_Alloc(10);
@@ -1431,6 +1434,7 @@ main(void)
 	assert(VBOR_PrintJSON(&vbor, vsb, 0) != 0);
 	VSB_destroy(&vsb);
 	VBOB_Destroy(&vbob);
+	free(TRUST_ME(vbor.data));
 	VBOR_Fini(&vbor);
 
 	vbob = VBOB_Alloc(3);
@@ -1464,6 +1468,7 @@ main(void)
 	printf("%s\n", VSB_data(vsb));
 	VSB_destroy(&vsb);
 
+	free(TRUST_ME(vbor.data));
 	VBOR_Fini(&vbor);
 
 	vbob = VBOB_Alloc(1);
@@ -1508,6 +1513,7 @@ main(void)
 		assert(VBOR_What(&next) == types[i]);
 	}
 	VBOC_Fini(&vboc);
+	free(TRUST_ME(vbor.data));
 	VBOR_Fini(&vbor);
 
 	vbob = VBOB_Alloc(1);
@@ -1530,6 +1536,7 @@ main(void)
 	VSB_finish(vsb);
 	printf("%s\n", VSB_data(vsb));
 	VSB_destroy(&vsb);
+	free(TRUST_ME(vbor.data));
 	VBOR_Fini(&vbor);
 
 	vbob = VBOB_Alloc(2);

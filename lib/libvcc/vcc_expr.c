@@ -528,7 +528,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
     const char *extra, struct symbol *sym)
 {
 	vcc_type_t rfmt;
-	const char *cfunc;
+	char *cfunc, *type;
 	struct expr *e1;
 	struct func_arg *fa, *fa2;
 	VTAILQ_HEAD(,func_arg) head;
@@ -617,7 +617,9 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 			}
 			continue;
 		}
-		fa->type = VCC_Type(strndup(val, val_len));
+		type = strndup(val, val_len);
+		fa->type = VCC_Type(type);
+		free(type);
 		AN(fa->type);
 		assert(arr_len < 6);
 		if (arr_len >= 2) {
@@ -634,7 +636,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 				assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
 				if (type == VBOR_TEXT_STRING) {
 					assert(!VBOR_GetString(&next, &val, &val_len));
-					char *p = malloc(val_len);
+					char *p = malloc(val_len + 1);
 					AN(p);
 					fa->val = p;
 					for (size_t i = 0; i < val_len; i++, p++) {
@@ -756,6 +758,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 				VSB_printf(tl->sb, "Argument %d missing\n", n);
 			vcc_ErrWhere(tl, tl->t);
 		}
+		free(TRUST_ME(fa->name));
 		free(fa);
 	}
 	if (sa != NULL) {
@@ -763,6 +766,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	} else {
 		*e = vcc_expr_edit(tl, e1->fmt, "\v1\v-\n)", e1, NULL);
 	}
+	free(cfunc);
 	SkipToken(tl, ')');
 	vcc_AddUses(tl, tf, NULL, sym, XREF_READ);
 }

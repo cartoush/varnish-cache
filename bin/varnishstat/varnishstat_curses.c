@@ -1142,6 +1142,9 @@ delpt(void *priv, const struct VSC_point *const vpt)
 		main_cache_hit = NULL;
 	if (vpt->ptr == main_cache_miss)
 		main_cache_miss = NULL;
+	free(TRUST_ME(vpt->ctype));
+	free(TRUST_ME(vpt->sdesc));
+	free(TRUST_ME(vpt->ldesc));
 }
 
 void
