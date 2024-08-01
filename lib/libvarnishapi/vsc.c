@@ -235,6 +235,9 @@ static void
 vsc_clean_point(struct vsc_pt *point)
 {
 	REPLACE(point->name, NULL);
+	free(TRUST_ME(point->point.ldesc));
+	free(TRUST_ME(point->point.sdesc));
+	free(TRUST_ME(point->point.ctype));
 }
 
 static void
@@ -412,7 +415,9 @@ vsc_unmap_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		sp->npoints = 0;
 		AZ(sp->vb);
 	} else if (sp->type == VSC_SEG_DOCS) {
+		free(TRUST_ME(sp->vb->data));
 		VBOR_Fini(sp->vb);
+		FREE_OBJ(sp->vb);
 		AZ(sp->points);
 	} else {
 		WRONG("Invalid segment type");
@@ -529,7 +534,6 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 
 	pp = sp->points;
 
-	elements_nb = sp->npoints;
 	assert(VBOR_What(&elem) == VBOR_MAP);
 	assert(!VBOR_Inside(&elem, &next));
 	VBOC_Init(&vboc, &next);
