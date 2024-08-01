@@ -264,8 +264,10 @@ mgt_vcl_symtab(struct vclprog *vp, const char *input)
 void
 mgt_vcl_symtab_clean(struct vclprog *vp)
 {
-	if (vp->symtab->magic == VBOR_MAGIC)
+	if (vp->symtab->magic == VBOR_MAGIC) {
+		free(TRUST_ME(vp->symtab->data));
 		VBOR_Fini(vp->symtab);
+	}
 }
 
 /*--------------------------------------------------------------------*/

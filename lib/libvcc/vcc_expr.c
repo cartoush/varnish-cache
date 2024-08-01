@@ -543,6 +543,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 	const char *sa, *extra_sep;
 	char ssa[64];
 	int n;
+	enum vbor_type vtype;
 
 	CAST_OBJ_NOTNULL(vbor, priv, VBOR_MAGIC);
 
@@ -623,18 +624,18 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		AN(fa->type);
 		assert(arr_len < 6);
 		if (arr_len >= 2) {
-			enum vbor_type type = VBOC_Next(&vboc2, &next);
-			assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
-			if (type == VBOR_TEXT_STRING) {
+			vtype = VBOC_Next(&vboc2, &next);
+			assert(vtype == VBOR_TEXT_STRING || vtype == VBOR_NULL);
+			if (vtype == VBOR_TEXT_STRING) {
 				assert(!VBOR_GetString(&next, &val, &val_len));
 				fa->name = strndup(val, val_len);
 			}
 			else
 				fa->name = NULL;
 			if (arr_len >= 3) {
-				type = VBOC_Next(&vboc2, &next);
-				assert(type == VBOR_TEXT_STRING || type == VBOR_NULL);
-				if (type == VBOR_TEXT_STRING) {
+				vtype = VBOC_Next(&vboc2, &next);
+				assert(vtype == VBOR_TEXT_STRING || vtype == VBOR_NULL);
+				if (vtype == VBOR_TEXT_STRING) {
 					assert(!VBOR_GetString(&next, &val, &val_len));
 					char *p = malloc(val_len + 1);
 					AN(p);
