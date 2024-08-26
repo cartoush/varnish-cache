@@ -18,6 +18,7 @@ libvarnish_la_SOURCES = \
 	vbh.c \
 	vas.c \
 	vav.c \
+	vbor.c \
 	vbt.c \
 	vcli_proto.c \
 	vcli_serve.c \
@@ -55,6 +56,7 @@ endif
 TESTS = \
 	vav_test \
 	vbh_test \
+	vbor_test \
 	vct_test \
 	vjsn_test \
 	vnum_c_test \
@@ -71,6 +73,10 @@ vav_test_LDADD = $(AM_LDFLAGS) libvarnish.la
 vbh_test_SOURCES	= vbh.c
 vbh_test_CFLAGS = $(AM_CFLAGS) -DTEST_DRIVER
 vbh_test_LDADD = $(AM_LDFLAGS) libvarnish.la
+
+vbor_test_SOURCES = vbor.c
+vbor_test_CFLAGS = $(AM_CFLAGS) -DVBOR_TEST
+vbor_test_LDADD = $(AM_LDFLAGS) libvarnish.la
 
 vct_test_SOURCES	= vct.c
 vct_test_CFLAGS = $(AM_CFLAGS) -DTEST_DRIVER
