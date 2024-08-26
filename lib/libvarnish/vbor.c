@@ -414,6 +414,73 @@ VBOR_What(const struct vbor *vbor)
 	return (VBOR_DecodeType(vbor->data[0]));
 }
 
+int
+VBOR_GetByteSize(const struct vbor *vbor, size_t *len)
+{
+	size_t acc = 1;
+	enum vbor_type type;
+	enum vbor_argument arg;
+	struct vboc vboc;
+	struct vbor next;
+	size_t val_len;
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	AN(len);
+	if (VBOR_GetHeader(vbor, &type, &arg, &val_len))
+		return (-1);
+	if (arg != VBOR_ARG_5BITS)
+		acc += pow(2, arg - 1);
+	if (type == VBOR_TEXT_STRING || type == VBOR_BYTE_STRING) {
+		*len = acc + val_len;
+		return (0);
+	}
+	if (type != VBOR_ARRAY && type != VBOR_MAP) {
+		*len = acc;
+		return (0);
+	}
+	*len = val_len;
+	if (type == VBOR_MAP)
+		*len *= 2;
+	assert(!VBOR_Init(&next, vbor->data + acc, vbor->len - acc,
+	    vbor->max_depth - 1));
+	VBOC_Init(&vboc, &next);
+
+	for (size_t ctr = 0; ctr < *len; ctr++)
+	{
+		assert(VBOC_Next(&vboc, &next) < VBOR_END);
+		if (VBOR_What(&next) == VBOR_TAG)
+			ctr--;
+		if (VBOR_GetByteSize(&next, &val_len))
+			return (-1);
+		acc += val_len;
+	}
+	*len = acc;
+	VBOC_Fini(&vboc);
+	return (0);
+}
+
+int
+VBOR_Inside(const struct vbor *vbor, struct vbor *inside)
+{
+	enum vbor_type type = VBOR_ERROR;
+	enum vbor_argument arg = VBOR_ARG_UNKNOWN;
+	size_t skip = -1;
+	size_t len = -1;
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	AN(inside);
+	if (VBOR_GetHeader(vbor, &type, &arg, &skip))
+		return (-1);
+	if (type != VBOR_ARRAY && type != VBOR_MAP)
+		return (-1);
+	skip = VBOR_LengthEncodedSize(skip) + 1;
+	if (VBOR_GetByteSize(vbor, &len))
+		return (-1);
+	if (VBOR_Init(inside, vbor->data + skip, len - skip, vbor->max_depth - 1))
+		return (-1);
+	return (0);
+}
+
 struct vbob_pos {
 	size_t	pos;
 	size_t	len;
@@ -769,4 +836,58 @@ VBOB_Destroy(struct vbob **vbob)
 	CHECK_OBJ_NOTNULL(*vbob, VBOB_MAGIC);
 	VSB_destroy(&(*vbob)->vsb);
 	FREE_OBJ(*vbob);
+}
+
+void
+VBOC_Init(struct vboc *vboc, const struct vbor *vbor)
+{
+	AN(vboc);
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	vboc->magic = VBOC_MAGIC;
+	vboc->src = vbor;
+	vboc->current[0].magic = 0;
+}
+
+void
+VBOC_Fini(struct vboc *vboc)
+{
+	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
+	memset(vboc, 0, sizeof(*vboc));
+}
+
+enum vbor_type
+VBOC_Next(struct vboc *vboc, struct vbor *vbor)
+{
+	CHECK_OBJ_NOTNULL(vboc, VBOC_MAGIC);
+	enum vbor_type type;
+	enum vbor_argument arg;
+	size_t len;
+	size_t skip;
+
+	if (vboc->current->magic == 0) {
+		if (VBOR_Copy(vboc->current, vboc->src))
+			return (VBOR_ERROR);
+		if (VBOR_Copy(vbor, vboc->current))
+			return (VBOR_ERROR);
+		return (VBOR_What(vboc->current));
+	}
+	if (vboc->current->len <= 0) {
+		memcpy(vbor, vboc->current, sizeof (struct vbor));
+		return (VBOR_END);
+	}
+	if (VBOR_GetHeader(vboc->current, &type, &arg, &len))
+		return (VBOR_ERROR);
+	if (VBOR_GetByteSize(vboc->current, &skip))
+		return (VBOR_ERROR);
+	if (vboc->current->len - skip <= 0) {
+		vboc->current->len = 0;
+		memcpy(vbor, vboc->current, sizeof (struct vbor));
+		return (VBOR_END);
+	}
+	if (VBOR_Init(vboc->current, vboc->current->data + skip,
+	    vboc->current->len - skip, vboc->current->max_depth) == -1)
+		return (VBOR_ERROR);
+	if (vbor)
+		memcpy(vbor, &vboc->current[0], sizeof(*vbor));
+	return (VBOR_What(vboc->current));
 }
