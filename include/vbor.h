@@ -94,6 +94,8 @@ struct vbob;
 
 struct vbob	*VBOB_Alloc(unsigned max_depth);
 
+int	VBOB_ParseJSON(struct vbob *vbob, const char *json);
+
 int	VBOB_AddUInt(struct vbob *vbob, uint64_t value);
 int	VBOB_AddNegint(struct vbob *vbob, uint64_t value);
 int	VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
