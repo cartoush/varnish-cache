@@ -38,6 +38,7 @@
 #include "miniobj.h"
 #include "vas.h"
 #include "vbor.h"
+#include "vsb.h"
 
 enum vbor_argument
 {
@@ -411,4 +412,361 @@ VBOR_What(const struct vbor *vbor)
 	if (vbor->len == 0)
 		return (VBOR_END);
 	return (VBOR_DecodeType(vbor->data[0]));
+}
+
+struct vbob_pos {
+	size_t	pos;
+	size_t	len;
+};
+
+struct vbob {
+	unsigned	magic;
+#define VBOB_MAGIC	0x3abff812
+	const char	*err;
+	struct vsb	*vsb;
+	unsigned	max_depth;
+	unsigned	depth;
+	struct vbob_pos	pos[];
+};
+
+static const char *vsb_not_empty_err = "VSB not empty";
+static const char *index_oob_err = "Index out of bound";
+static const char *max_depth_reached_err = "Max depth reached";
+static const char *invalid_simple_value_err = "Invalid simple value";
+static const char *half_prec_float_no_support_err =
+	    "Half-precision floating number not supported";
+static const char *invalid_float_size_err = "Invalid float size";
+
+static int
+VBOB_Update_cursor(struct vbob *vbob, enum vbor_type type, size_t len)
+{
+
+	if (type != VBOR_ARRAY && type != VBOR_MAP) {
+		if (vbob->depth == (unsigned)-1) {
+			if (VSB_len(vbob->vsb) != 0) {
+				vbob->err = vsb_not_empty_err;
+				return (-1);
+			}
+			return (0);
+		}
+		else if (type != VBOR_TAG)
+			vbob->pos[vbob->depth].pos += 1;
+	}
+	else {
+		if (vbob->depth == (unsigned)-1 && vbob->pos[0].len != 0
+		    && vbob->pos[0].pos >= vbob->pos[0].len) {
+			vbob->err = index_oob_err;
+			return (-1);
+		}
+		vbob->depth++;
+		if (vbob->depth >= vbob->max_depth) {
+			vbob->err = max_depth_reached_err;
+			return (-1);
+		}
+		vbob->pos[vbob->depth].len = type == VBOR_ARRAY ? len : len * 2;
+		vbob->pos[vbob->depth].pos = 0;
+	}
+	if (vbob->depth != (unsigned)-1
+	    && vbob->pos[vbob->depth].pos >= vbob->pos[vbob->depth].len) {
+		while (vbob->depth != (unsigned)-1
+		    && vbob->pos[vbob->depth].pos >= vbob->pos[vbob->depth].len) {
+			vbob->depth--;
+			if (vbob->depth != (unsigned)-1)
+				vbob->pos[vbob->depth].pos += 1;
+		}
+		if (vbob->depth == (unsigned)-1 && vbob->pos[0].pos != 0
+		    && vbob->pos[0].pos > vbob->pos[0].len) {
+			vbob->err = index_oob_err;
+			return (-1);
+		}
+	}
+	return (0);
+}
+
+static uint8_t
+VBOB_EncodedArg(size_t size)
+{
+	enum vbor_argument arg = VBOR_ARG_5BITS;
+
+	if (size > 0xFFFFFFFF)
+		arg = VBOR_ARG_8BYTES;
+	else if (size > 0xFFFF)
+		arg = VBOR_ARG_4BYTES;
+	else if (size > 0xFF)
+		arg = VBOR_ARG_2BYTES;
+	else if (size > 23)
+		arg = VBOR_ARG_1BYTE;
+	else
+		return size;
+	return (arg + 0x17);
+}
+
+static uint8_t
+VBOB_EncodeType(enum vbor_type type)
+{
+
+	if (type > VBOR_FLOAT_SIMPLE && type < VBOR_END)
+		type = VBOR_FLOAT_SIMPLE;
+	return (type << 5);
+}
+
+static int
+VBOB_AddHeader(struct vbob *vbob, enum vbor_type type, size_t len)
+{
+	uint8_t hdr[9] = {0};
+	uint8_t written = 1;
+	hdr[0] = VBOB_EncodeType(type);
+	hdr[0] |= VBOB_EncodedArg(len);
+	size_t size_len = VBOR_LengthEncodedSize(len);
+
+	if (vbob->err != NULL)
+		return (-1);
+	if (size_len != 0) {
+		for (size_t i = 0; i < size_len; i++)
+			hdr[i + 1] = (len >> ((size_len - 1 - i) * 8)) & 0xFF;
+		written += size_len;
+	}
+	return (VSB_bcat(vbob->vsb, hdr, written));
+}
+
+static int
+VBOB_AddHeaderFloat(struct vbob *vbob, char len)
+{
+	char hdr;
+
+	switch (len) {
+	case 8:
+		len = 27;
+		break;
+	case 4:
+		len = 26;
+		break;
+	case 1:
+		len = 24;
+		break;
+	case 0:
+		break;
+	case 2:
+	// Half precision floats not supported (yet?)
+		vbob->err = half_prec_float_no_support_err;
+		return (-1);
+	default:
+		vbob->err = invalid_float_size_err;
+		return (-1);
+	}
+	hdr = (VBOR_FLOAT_SIMPLE << 5) | len;
+	return (VSB_bcat(vbob->vsb, &hdr, 1));
+}
+
+struct vbob *
+VBOB_Alloc(unsigned max_depth)
+{
+	struct vbob *vbob;
+
+	ALLOC_FLEX_OBJ(vbob, pos, max_depth, VBOB_MAGIC);
+	vbob->vsb = VSB_new_auto();
+	vbob->max_depth = max_depth;
+	vbob->depth = -1;
+	vbob->err = NULL;
+	memset(vbob->pos, 0, sizeof(struct vbob_pos) * max_depth);
+	return (vbob);
+}
+
+int
+VBOB_AddUInt(struct vbob *vbob, uint64_t value)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_UINT, 0) != 0)
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_UINT, value));
+}
+
+int
+VBOB_AddNegint(struct vbob *vbob, uint64_t value)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_NEGINT, 0) != 0)
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_NEGINT, value - 1));
+}
+
+int
+VBOB_AddString(struct vbob *vbob, const char *value, size_t len)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_TEXT_STRING, 0))
+		return (-1);
+	if (VBOB_AddHeader(vbob, VBOR_TEXT_STRING, len))
+		return (-1);
+	return (VSB_bcat(vbob->vsb, value, len));
+}
+
+int
+VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_BYTE_STRING, 0))
+		return (-1);
+	if (VBOB_AddHeader(vbob, VBOR_BYTE_STRING, len))
+		return (-1);
+	return (VSB_bcat(vbob->vsb, value, len));
+}
+
+int
+VBOB_AddArray(struct vbob *vbob, size_t num_items)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_ARRAY, num_items))
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_ARRAY, num_items));
+}
+
+int
+VBOB_AddMap(struct vbob *vbob, size_t num_pairs)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_MAP, num_pairs))
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_MAP, num_pairs));
+}
+
+int
+VBOB_AddTag(struct vbob *vbob, uint64_t value)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_TAG, 0))
+		return (-1);
+	return (VBOB_AddHeader(vbob, VBOR_TAG, value));
+}
+
+int
+VBOB_AddSimple(struct vbob *vbob, uint8_t value)
+{
+	uint8_t wr[2];
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0))
+		return (-1);
+	wr[0] = VBOR_FLOAT_SIMPLE << 5;
+	if (value <= 23) {
+		wr[0] |= value;
+		return (VSB_bcat(vbob->vsb, wr, 1));
+	}
+	else if (value < 32) {
+		vbob->err = invalid_simple_value_err;
+		return (-1);
+	}
+	wr[0] |= 24;
+	wr[1] = value;
+	return (VSB_bcat(vbob->vsb, wr, 2));
+}
+
+int
+VBOB_AddBool(struct vbob *vbob, unsigned value)
+{
+
+	return (VBOB_AddSimple(vbob, value ? 21 : 20));
+}
+
+int
+VBOB_AddNull(struct vbob *vbob)
+{
+
+	return (VBOB_AddSimple(vbob, 22));
+}
+
+int
+VBOB_AddUndefined(struct vbob *vbob)
+{
+
+	return (VBOB_AddSimple(vbob, 23));
+}
+
+int
+VBOB_AddFloat(struct vbob *vbob, float value)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0))
+		return (-1);
+	if (VBOB_AddHeaderFloat(vbob, 4))
+		return (-1);
+	invert_bytes((uint8_t *)&value, 4);
+	return VSB_bcat(vbob->vsb, &value, 4);
+}
+
+int
+VBOB_AddDouble(struct vbob *vbob, double value)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	if (vbob->err != NULL)
+		return (-1);
+	if (VBOB_Update_cursor(vbob, VBOR_FLOAT_SIMPLE, 0))
+		return (-1);
+	if (VBOB_AddHeaderFloat(vbob, 8))
+		return (-1);
+	invert_bytes((uint8_t *)&value, 8);
+	return VSB_bcat(vbob->vsb, &value, 8);
+}
+
+const char *
+VBOB_GetError(const struct vbob *vbob)
+{
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	return vbob->err;
+}
+
+int
+VBOB_Finish(struct vbob *vbob, struct vbor *vbor)
+{
+	size_t data_len;
+	uint8_t *data;
+
+	CHECK_OBJ_NOTNULL(vbob, VBOB_MAGIC);
+	AN(vbor);
+	if (vbob->err || vbob->depth != (unsigned)-1 || VSB_finish(vbob->vsb) == -1)
+		return (-1);
+	data_len = VSB_len(vbob->vsb);
+	if (data_len == (size_t)-1)
+		return (-1);
+	data = malloc(data_len);
+	memcpy(data, VSB_data(vbob->vsb), data_len);
+	return (VBOR_Init(vbor, data, data_len, vbob->max_depth));
+}
+
+void
+VBOB_Destroy(struct vbob **vbob)
+{
+
+	AN(vbob);
+	CHECK_OBJ_NOTNULL(*vbob, VBOB_MAGIC);
+	VSB_destroy(&(*vbob)->vsb);
+	FREE_OBJ(*vbob);
 }

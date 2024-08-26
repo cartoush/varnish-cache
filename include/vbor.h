@@ -86,4 +86,27 @@ int	VBOR_GetDouble(const struct vbor *vbor, double *res);
 
 enum vbor_type	VBOR_What(const struct vbor *vbor);
 
+struct vbob;
+
+struct vbob	*VBOB_Alloc(unsigned max_depth);
+
+int	VBOB_AddUInt(struct vbob *vbob, uint64_t value);
+int	VBOB_AddNegint(struct vbob *vbob, uint64_t value);
+int	VBOB_AddString(struct vbob *vbob, const char *value, size_t len);
+int	VBOB_AddByteString(struct vbob *vbob, const uint8_t *value, size_t len);
+int	VBOB_AddArray(struct vbob *vbob, size_t num_items);
+int	VBOB_AddMap(struct vbob *vbob, size_t num_pairs);
+int	VBOB_AddTag(struct vbob *vbob, uint64_t value);
+int	VBOB_AddSimple(struct vbob *vbob, uint8_t value);
+int	VBOB_AddBool(struct vbob *vbob, unsigned value);
+int	VBOB_AddNull(struct vbob *vbob);
+int	VBOB_AddUndefined(struct vbob *vbob);
+int	VBOB_AddFloat(struct vbob *vbob, float value);
+int	VBOB_AddDouble(struct vbob *vbob, double value);
+
+const char *VBOB_GetError(const struct vbob *vbob);
+
+int	VBOB_Finish(struct vbob *vbob, struct vbor *vbor);
+void	VBOB_Destroy(struct vbob **vbob);
+
 #endif
