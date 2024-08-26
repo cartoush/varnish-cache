@@ -30,6 +30,7 @@
 
 #include "config.h"
 
+#include <ctype.h>
 #include <math.h>
 #include <string.h>
 
@@ -503,6 +504,10 @@ static const char *invalid_simple_value_err = "Invalid simple value";
 static const char *half_prec_float_no_support_err =
 	    "Half-precision floating number not supported";
 static const char *invalid_float_size_err = "Invalid float size";
+static const char *json_closing_err = "Closing character missing";
+static const char *json_bad_number_err = "Bad number";
+static const char *json_unterminated_str_err = "Unterminated string";
+static const char *json_unrecognized_val_err = "Unrecognized value";
 
 static int
 VBOB_Update_cursor(struct vbob *vbob, enum vbor_type type, size_t len)
@@ -890,4 +895,190 @@ VBOC_Next(struct vboc *vboc, struct vbor *vbor)
 	if (vbor)
 		memcpy(vbor, &vboc->current[0], sizeof(*vbor));
 	return (VBOR_What(vboc->current));
+}
+
+static unsigned
+is_nb_float(const char *str)
+{
+	while (isdigit(*str))
+		str++;
+	return (*str == '.');
+}
+
+static const char *
+get_str_end(const char *str)
+{
+	unsigned escaped = 0;
+
+	while (*str != '\0') {
+		if (!escaped && *str == '"')
+			break;
+		if (*str == '\\')
+			escaped = 1;
+		else
+			escaped = 0;
+		str++;
+	}
+	return (*str == '"' ? str : NULL);
+}
+
+static size_t
+json_count_elements(const char *json)
+{
+	size_t count = 1;
+	char closing;
+	unsigned depth;
+	char sub_opening;
+	char sub_closing;
+
+	if (*json != '{' && *json != '[')
+		return (-1);
+	closing = *json == '[' ? ']' : '}';
+	json++;
+	while (isspace(*json))
+		json++;
+	if (*json == closing)
+		return (0);
+	while (*json != '\0' && *json != closing) {
+		if (*json == ',') {
+			count++;
+			json++;
+			continue;
+		}
+		if (*json == '[' || *json == '{') {
+			depth = 1;
+			sub_opening = *json;
+			sub_closing = sub_opening == '[' ? ']' : '}';
+			while (*json != '\0' && depth != 0)
+			{
+				json++;
+				if (*json == '"') {
+					json = get_str_end(json);
+					if (json == NULL)
+						return (-1);
+					continue;
+				}
+				else if (*json == sub_opening)
+					depth++;
+				else if (*json == sub_closing)
+					depth--;
+			}
+			if (*json == '\0' || depth != 0)
+				return (-1);
+		}
+		else if (*json == '"') {
+			json++;
+			json = get_str_end(json);
+			if (json == NULL)
+				return (-1);
+		}
+		json++;
+	}
+	return (count);
+}
+
+int
+VBOB_ParseJSON(struct vbob *vbob, const char *json)
+{
+	int sign = 1;
+	size_t count;
+	char *endptr;
+	const char *end;
+	double dval;
+	uint64_t val;
+
+	AN(json);
+	AN(vbob);
+	while (*json != '\0' && !vbob->err) {
+		if (isspace(*json) || *json == ',' || *json == ':' || *json == '}'
+		    || *json == ']')
+		{
+			json++;
+			continue;
+		}
+		switch (*json) {
+		case '{':;
+			count = json_count_elements(json);
+			if (count == (size_t)-1) {
+				vbob->err = json_closing_err;
+				break;
+			}
+			VBOB_AddMap(vbob, count);
+			json++;
+			break;
+		case '[':
+			count = json_count_elements(json);
+			if (count == (size_t)-1) {
+				vbob->err = json_closing_err;
+				break;
+			}
+			VBOB_AddArray(vbob, count);
+			json++;
+			break;
+		case '}':
+		case ']':
+			json++;
+			break;
+		case '-':
+			sign = -1;
+			json++;
+			if (!isdigit(*json))
+				vbob->err = json_bad_number_err;
+			break;
+		case '0':
+		case '1':
+		case '2':
+		case '3':
+		case '4':
+		case '5':
+		case '6':
+		case '7':
+		case '8':
+		case '9':;
+			endptr = NULL;
+			if (is_nb_float(json)) {
+				dval = strtod(json, &endptr);
+				json = endptr;
+				VBOB_AddDouble(vbob, dval * sign);
+			}
+			else {
+				val = strtoul(json, &endptr, 10);
+				json = endptr;
+				sign == -1 ? VBOB_AddNegint(vbob, val) : VBOB_AddUInt(vbob, val);
+			}
+			sign = 1;
+			break;
+		case '"':
+			json++;
+			end = get_str_end(json);
+			if (end == NULL) {
+				vbob->err = json_unterminated_str_err;
+				break;
+			}
+			VBOB_AddString(vbob, json, end - json);
+			json += (end - json) + 1;
+			break;
+		case 't':
+		case 'f':
+		case 'n':
+			if (!memcmp(json, "true", sizeof("true") - 1)) {
+				VBOB_AddBool(vbob, 1);
+				json += sizeof("true");
+			}
+			else if (!memcmp(json, "false", sizeof("false") - 1)) {
+				VBOB_AddBool(vbob, 0);
+				json += sizeof("false");
+			}
+			else if (!memcmp(json, "null", sizeof("null") - 1)) {
+				VBOB_AddNull(vbob);
+				json += sizeof("null");
+			}
+			else
+				vbob->err = json_unrecognized_val_err;
+			break;
+		default:
+			vbob->err = json_unrecognized_val_err;
+		}
+	}
+	return (vbob->err == NULL ? 0 : -1);
 }
