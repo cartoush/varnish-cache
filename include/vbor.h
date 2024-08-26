@@ -34,6 +34,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+struct vsb;
+
 struct vbor {
 	unsigned	magic;
 #define VBOR_MAGIC	0x97675fd9
@@ -71,6 +73,9 @@ enum vbor_type {
 int	VBOR_Init(struct vbor *vbor, const uint8_t *data, size_t len, unsigned max_depth);
 int	VBOR_Copy(struct vbor *dst, const struct vbor *src);
 void	VBOR_Fini(struct vbor *vbor);
+
+int	VBOR_PrintJSON(const struct vbor *vbor, struct vsb *json,
+	    unsigned pretty);
 
 int	VBOR_GetUInt(const struct vbor *vbor, uint64_t *res);
 int	VBOR_GetNegint(const struct vbor *vbor, uint64_t *res);

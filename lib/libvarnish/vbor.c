@@ -39,6 +39,7 @@
 #include "miniobj.h"
 #include "vas.h"
 #include "vbor.h"
+#include "venc.h"
 #include "vsb.h"
 
 enum vbor_argument
@@ -215,6 +216,157 @@ VBOR_Fini(struct vbor *vbor)
 
 	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	FINI_OBJ(vbor);
+}
+
+static int
+VBOR_DoPrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty,
+	    unsigned tabs)
+{
+	struct vboc vboc;
+	struct vbor next;
+	enum vbor_type type;
+
+	switch (VBOR_What(vbor)) {
+	case VBOR_UINT:;
+		uint64_t uval = 0;
+		if (VBOR_GetUInt(vbor, &uval))
+			return (-1);
+		VSB_printf(json, "%lu", uval);
+		break;
+	case VBOR_NEGINT:;
+		uint64_t nval = 0;
+		if (VBOR_GetNegint(vbor, &nval))
+			return (-1);
+		VSB_printf(json, "-%lu", nval);
+		break;
+	case VBOR_TEXT_STRING:;
+		size_t tdata_len = 0;
+		const char *tdata = NULL;
+		if (VBOR_GetString(vbor, (const char **)&tdata, &tdata_len))
+			return (-1);
+		VSB_putc(json, '"');
+		VSB_bcat(json, tdata, tdata_len);
+		VSB_putc(json, '"');
+		break;
+	case VBOR_BYTE_STRING:;
+		size_t bdata_len = 0;
+		const uint8_t *bdata = NULL;
+		if (VBOR_GetByteString(vbor, &bdata, &bdata_len))
+			return (-1);
+		VSB_putc(json, '"');
+		VENC_Encode_Base64(json, bdata, bdata_len);
+		VSB_putc(json, '"');
+		break;
+	case VBOR_ARRAY:;
+		size_t num_items = 0;
+		VSB_putc(json, '[');
+		if (pretty)
+			VSB_putc(json, '\n');
+		if (VBOR_GetArraySize(vbor, &num_items))
+			return (-1);
+		VBOR_Inside(vbor, &next);
+		VBOC_Init(&vboc, &next);
+		tabs += 1;
+		for (size_t i = 0; i < num_items; i++) {
+			assert(VBOC_Next(&vboc, &next) < VBOR_END);
+			if (pretty) {
+				for (size_t j = 0; j < tabs; j++)
+					VSB_putc(json, '\t');
+			}
+			if (VBOR_DoPrintJSON(&next, json, pretty, tabs))
+				return (-1);
+			if (i < num_items - 1)
+				VSB_putc(json, ',');
+			VSB_putc(json, pretty ? '\n' : ' ');
+		}
+		tabs -= 1;
+		if (pretty) {
+			for (size_t i = 0; i < tabs; i++)
+				VSB_putc(json, '\t');
+		}
+		VSB_putc(json, ']');
+		break;
+	case VBOR_MAP:;
+		size_t num_pairs = 0;
+		VSB_putc(json, '{');
+		if (pretty)
+			VSB_putc(json, '\n');
+		if (VBOR_GetMapSize(vbor, &num_pairs))
+			return (-1);
+		VBOR_Inside(vbor, &next);
+		VBOC_Init(&vboc, &next);
+		tabs += 1;
+		for (size_t i = 0; i < num_pairs; i++) {
+			assert((type = VBOC_Next(&vboc, &next)) < VBOR_END);
+			if (type != VBOR_TEXT_STRING && type != VBOR_BYTE_STRING)
+				return (-1);
+			if (pretty) {
+				for (size_t j = 0; j < tabs; j++)
+					VSB_putc(json, '\t');
+			}
+			if (VBOR_DoPrintJSON(&next, json, pretty, tabs))
+				return (-1);
+			VSB_printf(json, ": ");
+			assert(VBOC_Next(&vboc, &next) < VBOR_END);
+			if (VBOR_DoPrintJSON(&next, json, pretty, tabs))
+				return (-1);
+			if (i < num_pairs - 1)
+				VSB_putc(json, ',');
+			VSB_putc(json, pretty ? '\n' : ' ');
+		}
+		tabs -= 1;
+		if (pretty) {
+			for (size_t i = 0; i < tabs; i++)
+				VSB_putc(json, '\t');
+		}
+		VSB_putc(json, '}');
+		break;
+	case VBOR_SIMPLE:;
+		uint8_t sval = 0;
+		if (VBOR_GetSimple(vbor, &sval))
+			return (-1);
+		VSB_printf(json, "%u", sval);
+		break;
+	case VBOR_FLOAT:;
+		float fval = 0;
+		if (VBOR_GetFloat(vbor, &fval))
+			return (-1);
+		VSB_printf(json, "%f", fval);
+		break;
+	case VBOR_DOUBLE:;
+		double dval = 0;
+		if (VBOR_GetDouble(vbor, &dval))
+			return (-1);
+		VSB_printf(json, "%f", dval);
+		break;
+	case VBOR_BOOL:;
+		unsigned bval;
+		if (VBOR_GetBool(vbor, &bval))
+			return (-1);
+		VSB_printf(json, "%s", bval ? "true" : "false");
+		break;
+	case VBOR_NULL:
+		VSB_printf(json, "null");
+		break;
+	case VBOR_UNDEFINED:
+		VSB_printf(json, "undefined");
+		break;
+	case VBOR_TAG:
+		break;
+	default:
+		WRONG("Invalid VBOR type here");
+		break;
+	}
+	return (0);
+}
+
+int
+VBOR_PrintJSON(const struct vbor *vbor, struct vsb *json, unsigned pretty)
+{
+
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
+	CHECK_OBJ_NOTNULL(json, VSB_MAGIC);
+	return VBOR_DoPrintJSON(vbor, json, pretty, 0);
 }
 
 int
