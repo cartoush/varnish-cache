@@ -86,6 +86,10 @@ int	VBOR_GetDouble(const struct vbor *vbor, double *res);
 
 enum vbor_type	VBOR_What(const struct vbor *vbor);
 
+int	VBOR_GetByteSize(const struct vbor *vbor, size_t *len);
+
+int	VBOR_Inside(const struct vbor *vbor, struct vbor *inside);
+
 struct vbob;
 
 struct vbob	*VBOB_Alloc(unsigned max_depth);
@@ -108,5 +112,18 @@ const char *VBOB_GetError(const struct vbob *vbob);
 
 int	VBOB_Finish(struct vbob *vbob, struct vbor *vbor);
 void	VBOB_Destroy(struct vbob **vbob);
+
+struct vboc
+{
+	unsigned		magic;
+#define VBOC_MAGIC		0x863baac8
+	const struct vbor	*src;
+	struct vbor		current[1];
+};
+
+void			VBOC_Init(struct vboc *vboc, const struct vbor *vbor);
+void			VBOC_Fini(struct vboc *vboc);
+
+enum vbor_type	VBOC_Next(struct vboc *vboc, struct vbor *vbor);
 
 #endif
