@@ -38,6 +38,8 @@ OPER(BANS_OPER_GT,	">")
 OPER(BANS_OPER_GTE,	">=")
 OPER(BANS_OPER_LT,	"<")
 OPER(BANS_OPER_LTE,	"<=")
+OPER(BANS_OPER_START,	"startswith")
+OPER(BANS_OPER_END,	"endswith")
 
 #undef OPER
 

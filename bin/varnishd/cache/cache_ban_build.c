@@ -38,6 +38,7 @@
 #include "cache_ban.h"
 
 #include "vend.h"
+#include "vsb.h"
 #include "vtim.h"
 #include "vnum.h"
 
@@ -222,6 +223,35 @@ ban_parse_oper(const char *p)
 	return (-1);
 }
 
+const char *
+clean_string(const char *banexp, int op)
+{
+	struct vsb *clean;
+	const char *clean_str = NULL;
+	const char *special_chars = "\\^$.|?*+()[]{}";
+
+	clean = VSB_new_auto();
+
+	if (op == BANS_OPER_START)
+		VSB_putc(clean, '^');
+
+	for (size_t i = 0; i < strlen(banexp); i++) {
+		if (strchr(special_chars, banexp[i])) {
+			VSB_putc(clean, '\\');
+		}
+		VSB_putc(clean, banexp[i]);
+	}
+
+	if (op == BANS_OPER_END)
+		VSB_putc(clean, '$');
+
+	free(TRUST_ME(banexp));
+	VSB_finish(clean);
+	clean_str = VSB_data(clean);
+	VSB_destroy(&clean);
+	return clean_str;
+}
+
 /*--------------------------------------------------------------------
  * Add a (and'ed) test-condition to a ban
  */
@@ -277,6 +307,8 @@ BAN_AddTest(struct ban_proto *bp,
 	if ((pv->flag & BANS_FLAG_DURATION) == 0) {
 		assert(! BANS_HAS_ARG2_DOUBLE(pv->tag));
 
+		if (op == BANS_OPER_START || op == BANS_OPER_END)
+			a3 = clean_string(a3, op);
 		ban_add_lump(bp, a3, strlen(a3) + 1);
 		VSB_putc(bp->vsb, op);
 

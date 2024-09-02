@@ -82,7 +82,9 @@
 #define BANS_OPER_GTE		0x15
 #define BANS_OPER_LT		0x16
 #define BANS_OPER_LTE		0x17
-#define BANS_OPER_LIM_		(BANS_OPER_LTE + 1)
+#define BANS_OPER_START	0x18
+#define BANS_OPER_END		0x19
+#define BANS_OPER_LIM_		(BANS_OPER_END + 1)
 
 #define BAN_OPERIDX(x) ((x) - BANS_OPER_OFF_)
 #define BAN_OPERARRSZ  (BANS_OPER_LIM_ - BANS_OPER_OFF_)
@@ -111,7 +113,9 @@
 // has an arg2_spec (regex)
 #define BANS_HAS_ARG2_SPEC(oper)	\
 	((oper) == BANS_OPER_MATCH ||	\
-	 (oper) == BANS_OPER_NMATCH)
+	 (oper) == BANS_OPER_NMATCH ||	\
+	 (oper) == BANS_OPER_START ||	\
+	 (oper) == BANS_OPER_END)
 
 // has an arg2_double (BANS_FLAG_DURATION at build time)
 #define BANS_HAS_ARG2_DOUBLE(arg)	\

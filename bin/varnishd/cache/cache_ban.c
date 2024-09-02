@@ -567,6 +567,8 @@ ban_evaluate(struct worker *wrk, const uint8_t *bsarg, struct objcore *oc,
 				return (0);
 			}
 			break;
+		case BANS_OPER_START:
+		case BANS_OPER_END:
 		case BANS_OPER_MATCH:
 			if (arg1 == NULL)
 				return (0);
