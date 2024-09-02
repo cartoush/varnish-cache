@@ -29,7 +29,6 @@ libvarnish_la_SOURCES = \
 	vfil.c \
 	vfl.c \
 	vin.c \
-	vjsn.c \
 	vlu.c \
 	vmb.c \
 	vnum.c \
@@ -58,7 +57,6 @@ TESTS = \
 	vbh_test \
 	vbor_test \
 	vct_test \
-	vjsn_test \
 	vnum_c_test \
 	vsb_test \
 	vte_test \
@@ -85,10 +83,6 @@ vct_test_LDADD = $(AM_LDFLAGS) libvarnish.la
 vnum_c_test_SOURCES = vnum.c
 vnum_c_test_CFLAGS = $(AM_CFLAGS) -DNUM_C_TEST
 vnum_c_test_LDADD = $(AM_LDFLAGS) libvarnish.la
-
-vjsn_test_SOURCES = vjsn.c
-vjsn_test_CFLAGS = $(AM_CFLAGS) -DVJSN_TEST
-vjsn_test_LDADD = $(AM_LDFLAGS) libvarnish.la
 
 vsb_test_SOURCES = vsb_test.c
 vsb_test_CFLAGS = $(AM_CFLAGS) -DVSB_TEST
