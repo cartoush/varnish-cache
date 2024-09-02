@@ -49,8 +49,8 @@
 #include "vapi/vsc.h"
 #include "vapi/vsl.h"
 #include "vapi/vsm.h"
+#include "vbor.h"
 #include "vcli.h"
-#include "vjsn.h"
 #include "vre.h"
 #include "vsub.h"
 #include "vtcp.h"
@@ -772,19 +772,20 @@ varnish_cli_json(struct varnish *v, const char *cli)
 {
 	enum VCLI_status_e u;
 	char *resp = NULL;
-	const char *errptr;
-	struct vjsn *vj;
+	struct vbob *vbob;
 
 	VARNISH_LAUNCH(v);
 	u = varnish_ask_cli(v, cli, &resp);
 	vtc_log(v->vl, 2, "CLI %03u <%s>", u, cli);
 	if (u != CLIS_OK)
 		varnish_fatal(v,
-		    "FAIL CLI response %u expected %u", u, CLIS_OK);
-	vj = vjsn_parse(resp, &errptr);
-	if (vj == NULL)
-		varnish_fatal(v, "FAIL CLI, not good JSON: %s", errptr);
-	vjsn_delete(&vj);
+			"FAIL CLI response %u expected %u", u, CLIS_OK);
+	vbob = VBOB_Alloc(10);
+	AN(vbob);
+	if (VBOB_ParseJSON(vbob, resp) == -1)
+		varnish_fatal(v, "FAIL CLI, not good JSON: %s", resp);
+
+	VBOB_Destroy(&vbob);
 	free(resp);
 }
 
