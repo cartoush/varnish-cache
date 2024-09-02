@@ -45,7 +45,7 @@
 #include "vas.h"
 #include "miniobj.h"
 #include "vqueue.h"
-#include "vjsn.h"
+#include "vbor.h"
 #include "vsb.h"
 #include "vsc_priv.h"
 
@@ -93,7 +93,7 @@ struct vsc_seg {
 	const struct vsc_head	*head;
 	const char		*body;
 
-	struct vjsn		*vj;
+	struct vbor		*vb;
 
 	unsigned		npoints;
 	struct vsc_pt		*points;
@@ -235,23 +235,96 @@ static void
 vsc_clean_point(struct vsc_pt *point)
 {
 	REPLACE(point->name, NULL);
+	free(TRUST_ME(point->point.ldesc));
+	free(TRUST_ME(point->point.sdesc));
+	free(TRUST_ME(point->point.ctype));
 }
 
 static void
 vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
-    const struct vjsn_val *vv, struct vsb *vsb, struct vsc_pt *point)
+    const struct vbor *vbor, struct vsb *vsb, struct vsc_pt *point)
 {
-	struct vjsn_val *vt;
+	struct vboc vboc;
+	struct vbor next;
+
+	const char *name = NULL;
+	size_t name_len = 0;
+	const char *ctype = NULL;
+	size_t ctype_len = 0;
+	const char *oneliner = NULL;
+	size_t oneliner_len = 0;
+	const char *docs = NULL;
+	size_t docs_len = 0;
+	const char *type = NULL;
+	size_t type_len = 0;
+	const char *format = NULL;
+	size_t format_len = 0;
+	const char *level = NULL;
+	size_t level_len = 0;
+	uint64_t index = -1;
+
+	const char *kval = NULL;
+	size_t kval_len = 0;
+	const char *vval = NULL;
+	size_t vval_len = 0;
+	uint64_t uval = -1;
 
 	CHECK_OBJ_NOTNULL(vsc, VSC_MAGIC);
+	CHECK_OBJ_NOTNULL(vbor, VBOR_MAGIC);
 	memset(point, 0, sizeof *point);
 
-	vt = vjsn_child(vv, "name");
-	AN(vt);
-	assert(vjsn_is_string(vt));
+	assert(VBOR_What(vbor) == VBOR_MAP);
+	assert(!VBOR_Inside(vbor, &next));
+	VBOR_FOREACH(&vboc, &next, &next) {
+		assert(!VBOR_GetString(&next, &kval, &kval_len));
+		switch (VBOC_Next(&vboc, &next)) {
+			case VBOR_TEXT_STRING:
+				assert(!VBOR_GetString(&next, &vval, &vval_len));
+				break;
+			case VBOR_UINT:
+				assert(!VBOR_GetUInt(&next, &uval));
+				break;
+			default:
+				WRONG("Invalid JSON type here");
+		}
+		if (VBOR_STRING_LITERAL_MATCH("name", kval, kval_len)) {
+			name = vval;
+			name_len = vval_len;
+		} else if (VBOR_STRING_LITERAL_MATCH("ctype", kval, kval_len)) {
+			ctype = vval;
+			ctype_len = vval_len;
+		} else if (VBOR_STRING_LITERAL_MATCH("oneliner", kval, kval_len)) {
+			oneliner = vval;
+			oneliner_len = vval_len;
+		} else if (VBOR_STRING_LITERAL_MATCH("docs", kval, kval_len)) {
+			docs = vval;
+			docs_len = vval_len;
+		} else if (VBOR_STRING_LITERAL_MATCH("type", kval, kval_len)) {
+			type = vval;
+			type_len = vval_len;
+		} else if (VBOR_STRING_LITERAL_MATCH("format", kval, kval_len)) {
+			format = vval;
+			format_len = vval_len;
+		} else if (VBOR_STRING_LITERAL_MATCH("level", kval, kval_len)) {
+			level = vval;
+			level_len = vval_len;
+		} else if (VBOR_STRING_LITERAL_MATCH("index", kval, kval_len)) {
+			index = uval;
+		}
+	}
+	VBOR_Fini(&next);
+
+	AN(name);
+	AN(ctype);
+	AN(oneliner);
+	AN(docs);
+	AN(type);
+	AN(format);
+	AN(level);
+	assert(index != -1);
 
 	VSB_clear(vsb);
-	VSB_printf(vsb, "%s.%s", seg->fantom->ident, vt->value);
+	VSB_printf(vsb, "%s.%.*s", seg->fantom->ident, (int)name_len, name);
 	AZ(VSB_finish(vsb));
 
 	if (vsc_filter(vsc, VSB_data(vsb)))
@@ -261,64 +334,40 @@ vsc_fill_point(const struct vsc *vsc, const struct vsc_seg *seg,
 	AN(point->name);
 	point->point.name = point->name;
 
-#define DOF(n, k)				\
-	vt = vjsn_child(vv, k);			\
-	AN(vt);					\
-	assert(vjsn_is_string(vt));		\
-	point->point.n = vt->value;
+	point->point.ctype = strndup(ctype, ctype_len);
+	point->point.sdesc = strndup(oneliner, oneliner_len);
+	point->point.ldesc = strndup(docs, docs_len);
 
-	DOF(ctype, "ctype");
-	DOF(sdesc, "oneliner");
-	DOF(ldesc, "docs");
-#undef DOF
-	vt = vjsn_child(vv, "type");
-	AN(vt);
-	assert(vjsn_is_string(vt));
-
-	if (!strcmp(vt->value, "counter")) {
+	if (VBOR_STRING_LITERAL_MATCH("counter", type, type_len))
 		point->point.semantics = 'c';
-	} else if (!strcmp(vt->value, "gauge")) {
+	else if (VBOR_STRING_LITERAL_MATCH("gauge", type, type_len))
 		point->point.semantics = 'g';
-	} else if (!strcmp(vt->value, "bitmap")) {
+	else if (VBOR_STRING_LITERAL_MATCH("bitmap", type, type_len))
 		point->point.semantics = 'b';
-	} else {
+	else
 		point->point.semantics = '?';
-	}
 
-	vt = vjsn_child(vv, "format");
-	AN(vt);
-	assert(vjsn_is_string(vt));
-
-	if (!strcmp(vt->value, "integer")) {
+	if (VBOR_STRING_LITERAL_MATCH("integer", format, format_len))
 		point->point.format = 'i';
-	} else if (!strcmp(vt->value, "bytes")) {
+	else if (VBOR_STRING_LITERAL_MATCH("bytes", format, format_len))
 		point->point.format = 'B';
-	} else if (!strcmp(vt->value, "bitmap")) {
+	else if (VBOR_STRING_LITERAL_MATCH("bitmap", format, format_len))
 		point->point.format = 'b';
-	} else if (!strcmp(vt->value, "duration")) {
+	else if (VBOR_STRING_LITERAL_MATCH("duration", format, format_len))
 		point->point.format = 'd';
-	} else {
+	else
 		point->point.format = '?';
-	}
 
-	vt = vjsn_child(vv, "level");
-	AN(vt);
-	assert(vjsn_is_string(vt));
-
-	if (!strcmp(vt->value, "info"))  {
+	if (VBOR_STRING_LITERAL_MATCH("info", level, level_len))
 		point->point.level = &levels[info];
-	} else if (!strcmp(vt->value, "diag")) {
+	else if (VBOR_STRING_LITERAL_MATCH("diag", level, level_len))
 		point->point.level = &levels[diag];
-	} else if (!strcmp(vt->value, "debug")) {
+	else if (VBOR_STRING_LITERAL_MATCH("debug", level, level_len))
 		point->point.level = &levels[debug];
-	} else {
+	else
 		WRONG("Illegal level");
-	}
 
-	vt = vjsn_child(vv, "index");
-	AN(vt);
-
-	point->point.ptr = (volatile const void*)(seg->body + atoi(vt->value));
+	point->point.ptr = (const volatile void*)(seg->body + index);
 	point->point.raw = vsc->raw;
 }
 
@@ -356,11 +405,11 @@ vsc_unmap_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		free(sp->points);
 		sp->points = NULL;
 		sp->npoints = 0;
-		AZ(sp->vj);
+		AZ(sp->vb);
 	} else if (sp->type == VSC_SEG_DOCS) {
-		if (sp->vj != NULL)
-			vjsn_delete(&sp->vj);
-		AZ(sp->vj);
+		free(TRUST_ME(sp->vb->data));
+		VBOR_Fini(sp->vb);
+		FREE_OBJ(sp->vb);
 		AZ(sp->points);
 	} else {
 		WRONG("Invalid segment type");
@@ -375,13 +424,17 @@ vsc_unmap_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 static int
 vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 {
+	struct vboc vboc;
+	struct vbor next, elem;
+	struct vbob *vbob;
 	const struct vsc_head *head;
 	struct vsc_seg *spd;
-	const char *e;
-	struct vjsn_val *vv, *vve;
 	struct vsb *vsb;
 	struct vsc_pt *pp;
 	int retry;
+	const char *val = NULL;
+	size_t val_len = 0;
+	size_t elements_nb = 0;
 
 	CHECK_OBJ_NOTNULL(vsc, VSC_MAGIC);
 	AN(vsm);
@@ -415,9 +468,12 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 
 	if (sp->type == VSC_SEG_DOCS) {
 		/* Parse the DOCS json */
-		sp->vj = vjsn_parse(sp->body, &e);
-		XXXAZ(e);
-		AN(sp->vj);
+		vbob = VBOB_Alloc(10);
+		AN(vbob);
+		assert(!VBOB_ParseJSON(vbob, sp->body));
+		ALLOC_OBJ(sp->vb, VBOR_MAGIC);
+		assert(!VBOB_Finish(vbob, sp->vb));
+		VBOB_Destroy(&vbob);
 		return (0);
 	}
 
@@ -443,22 +499,43 @@ vsc_map_seg(const struct vsc *vsc, struct vsm *vsm, struct vsc_seg *sp)
 		return (-1);
 	}
 
+	assert(VBOR_What(spd->vb) == VBOR_MAP);
+	assert(!VBOR_Inside(spd->vb, &next));
+	VBOR_FOREACH(&vboc, &next, &next) {
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		assert(VBOC_Next(&vboc, &next) < VBOR_END);
+		if (VBOR_STRING_LITERAL_MATCH("elements", val, val_len)) {
+			assert(VBOR_What(&next) == VBOR_UINT);
+			assert(!VBOR_GetUInt(&next, &elements_nb));
+			sp->npoints = elements_nb;
+		} else if (VBOR_STRING_LITERAL_MATCH("elem", val, val_len)) {
+			assert(VBOR_What(&next) == VBOR_MAP);
+			VBOR_Copy(&elem, &next);
+		}
+	}
+
 	/* Create the VSC points list */
-	vve = vjsn_child(spd->vj->value, "elements");
-	AN(vve);
-	sp->npoints = strtoul(vve->value, NULL, 0);
+	assert(elements_nb != -1);
+	CHECK_OBJ_NOTNULL(&elem, VBOR_MAGIC);
+
 	sp->points = calloc(sp->npoints, sizeof *sp->points);
 	AN(sp->points);
 	vsb = VSB_new_auto();
 	AN(vsb);
-	vve = vjsn_child(spd->vj->value, "elem");
-	AN(vve);
+
 	pp = sp->points;
-	VTAILQ_FOREACH(vv, &vve->children, list) {
-		vsc_fill_point(vsc, sp, vv, vsb, pp);
+
+	assert(VBOR_What(&elem) == VBOR_MAP);
+	assert(!VBOR_Inside(&elem, &next));
+	VBOR_FOREACH(&vboc, &next, &next) {
+		assert(VBOR_What(&next) == VBOR_TEXT_STRING);
+		assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
+		vsc_fill_point(vsc, sp, &next, vsb, pp);
 		pp++;
 	}
 	VSB_destroy(&vsb);
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 	return (0);
 }
 
