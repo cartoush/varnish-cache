@@ -41,6 +41,8 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
+#include "vbor.h"
+
 #include "mgt/mgt.h"
 #include "mgt/mgt_vcl.h"
 #include "common/heritage.h"

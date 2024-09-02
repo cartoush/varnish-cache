@@ -42,6 +42,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "vbor.h"
+
 #include "mgt/mgt.h"
 #include "mgt/mgt_vcl.h"
 #include "common/heritage.h"
@@ -195,6 +197,8 @@ mgt_vcl_dep_del(struct vcldep *vd)
 	vd->to->nto--;
 	if (vd->to->nto == 0)
 		mgt_vcl_set_cooldown(vd->to, VTIM_mono());
+	if (vd->vb->magic == VBOR_MAGIC)
+		VBOR_Fini(vd->vb);
 	FREE_OBJ(vd);
 }
 

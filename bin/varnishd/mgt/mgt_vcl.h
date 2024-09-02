@@ -32,8 +32,8 @@
 
 struct vclprog;
 struct vmodfile;
-struct vjsn_val;
 struct vclstate;
+struct vbor;
 
 struct vmoddep {
 	unsigned		magic;
@@ -50,7 +50,7 @@ struct vcldep {
 	VTAILQ_ENTRY(vcldep)	lfrom;
 	struct vclprog		*to;
 	VTAILQ_ENTRY(vcldep)	lto;
-	const struct vjsn_val	*vj;
+	struct vbor		vb[1];
 };
 
 struct vclprog {
@@ -62,7 +62,7 @@ struct vclprog {
 	unsigned		warm;
 	const struct vclstate	*state;
 	double			go_cold;
-	struct vjsn		*symtab;
+	struct vbor		symtab[1];
 	VTAILQ_HEAD(, vcldep)	dfrom;
 	VTAILQ_HEAD(, vcldep)	dto;
 	int			nto;
