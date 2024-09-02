@@ -65,8 +65,8 @@ struct sockaddr_storage;
 struct symbol;
 struct symtab;
 struct token;
+struct vbor;
 struct vcc;
-struct vjsn_val;
 struct vmod_obj;
 struct vsb;
 
@@ -360,7 +360,7 @@ sym_expr_t vcc_Eval_Handle;
 sym_expr_t vcc_Eval_Sub;
 sym_expr_t vcc_Eval_SymFunc;
 sym_expr_t vcc_Eval_TypeMethod;
-void vcc_Eval_Func(struct vcc *, const struct vjsn_val *,
+void vcc_Eval_Func(struct vcc *, const struct vbor *,
     const char *, struct symbol *);
 void VCC_GlobalSymbol(struct symbol *, vcc_type_t fmt);
 struct symbol *VCC_HandleSymbol(struct vcc *, vcc_type_t);
