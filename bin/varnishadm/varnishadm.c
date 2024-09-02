@@ -66,8 +66,8 @@
 #include "vapi/vsig.h"
 #include "vapi/vsm.h"
 #include "vas.h"
+#include "vbor.h"
 #include "vcli.h"
-#include "vjsn.h"
 #include "vtcp.h"
 
 #define RL_EXIT(status) \
@@ -240,14 +240,17 @@ send_line(char *l)
 }
 
 static char *
-command_generator (const char *text, int state)
+command_generator(const char *text, int state)
 {
-	static struct vjsn *jsn_cmds;
-	static const struct vjsn_val *jv;
-	struct vjsn_val *jv2;
+	struct vbob *vbob;
+	static struct vbor cmds;
+	static struct vboc vboc;
+	struct vboc vboc2;
+	struct vbor next;
 	unsigned u;
 	char *answer = NULL;
-	const char *err;
+	const char *str;
+	size_t str_len;
 
 	if (!state) {
 		cli_write(line_sock, "help -j\n");
@@ -256,32 +259,39 @@ command_generator (const char *text, int state)
 			free(answer);
 			return (NULL);
 		}
-		jsn_cmds = vjsn_parse(answer, &err);
+		vbob = VBOB_Alloc(10);
+		VBOB_ParseJSON(vbob, answer);
+		u = VBOB_Finish(vbob, &cmds);
+		VBOB_Destroy(&vbob);
 		free(answer);
-		if (err != NULL)
+		if (u)
 			return (NULL);
-		AN(jsn_cmds);
-		AN(jsn_cmds->value);
-		assert (vjsn_is_array(jsn_cmds->value));
-		jv = VTAILQ_FIRST(&jsn_cmds->value->children);
-		assert (vjsn_is_number(jv));
-		jv = VTAILQ_NEXT(jv, list);
-		assert (vjsn_is_array(jv));
-		jv = VTAILQ_NEXT(jv, list);
-		assert (vjsn_is_number(jv));
-		jv = VTAILQ_NEXT(jv, list);
+		assert(VBOR_What(&cmds) == VBOR_ARRAY);
+		assert(!VBOR_Inside(&cmds, &next));
+		VBOC_Init(&vboc, &next);
+		assert(VBOC_Next(&vboc, &next) == VBOR_UINT);
+		assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+		assert(!VBOR_Inside(&next, &next));
+		VBOC_Init(&vboc2, &next);
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+		assert(VBOC_Next(&vboc, &next) == VBOR_DOUBLE);
 	}
-	while (jv != NULL) {
-		assert (vjsn_is_object(jv));
-		jv2 = VTAILQ_FIRST(&jv->children);
-		AN(jv2);
-		jv = VTAILQ_NEXT(jv, list);
-		assert (vjsn_is_string(jv2));
-		assert (!strcmp(jv2->name, "request"));
-		if (!strncmp(text, jv2->value, strlen(text)))
-			return (strdup(jv2->value));
+	while (VBOC_Next(&vboc, &next) == VBOR_MAP) {
+		assert(!VBOR_Inside(&next, &next));
+		VBOC_Init(&vboc2, &next);
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+		assert(VBOR_GetString(&next, &str, &str_len) == 0);
+		assert(VBOR_STRING_LITERAL_MATCH("request", str, str_len));
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+		assert(VBOR_GetString(&next, &str, &str_len) == 0);
+		if (!strncmp(text, str, strlen(text)))
+			return strndup(str, str_len);
+		VBOC_Fini(&vboc2);
 	}
-	vjsn_delete(&jsn_cmds);
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
+	VBOR_Fini(&cmds);
 	return (NULL);
 }
 
