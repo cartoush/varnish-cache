@@ -102,7 +102,6 @@ nobase_noinst_HEADERS = \
 	vfil.h \
 	vfl.h \
 	vin.h \
-	vjsn.h \
 	vlu.h \
 	vmb.h \
 	vpf.h \

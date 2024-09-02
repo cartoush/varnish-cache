@@ -50,7 +50,6 @@
 
 #include "common/common_param.h"
 
-struct vjsn;
 struct vsc_seg;
 struct vsmw_cluster;
 #include "VSC_mgt.h"
