@@ -38,7 +38,9 @@
 #include <string.h>
 
 #include "vcc_compile.h"
-#include "vjsn.h"
+#include "vbor.h"
+#include "vqueue.h"
+#include "vsb.h"
 
 struct expr {
 	unsigned	magic;
@@ -443,7 +445,7 @@ vcc_priv_arg(struct vcc *tl, const char *p, struct symbol *sym)
 
 struct func_arg {
 	vcc_type_t		type;
-	const struct vjsn_val	*enums;
+	const struct vbor	enums[1];
 	const char		*cname;
 	const char		*name;
 	const char		*val;
@@ -469,22 +471,45 @@ static void
 vcc_do_arg(struct vcc *tl, struct func_arg *fa)
 {
 	struct expr *e2;
-	struct vjsn_val *vv;
+	struct vboc vboc;
+	struct vbor next;
+	const char *val = NULL;
+	size_t val_len = 0;
+	char *aval = NULL;
 
 	if (fa->type == ENUM) {
 		ExpectErr(tl, ID);
 		ERRCHK(tl);
-		VTAILQ_FOREACH(vv, &fa->enums->children, list)
-			if (vcc_IdIs(tl->t, vv->value))
+
+		assert(VBOR_What(fa->enums) == VBOR_ARRAY);
+		assert(!VBOR_Inside(fa->enums, &next));
+		VBOR_FOREACH(&vboc, &next, &next) {
+			assert(!VBOR_GetString(&next, (const char**)&val,
+			    &val_len));
+			aval = strndup(val, val_len);
+			if (vcc_IdIs(tl->t, aval)) {
+				free(aval);
 				break;
-		if (vv == NULL) {
+			}
+			free(aval);
+		}
+		if (VBOR_What(&next) == VBOR_END) {
 			VSB_cat(tl->sb, "Wrong enum value.");
 			VSB_cat(tl->sb, "  Expected one of:\n");
-			VTAILQ_FOREACH(vv, &fa->enums->children, list)
-				VSB_printf(tl->sb, "\t%s\n", vv->value);
+
+			assert(!VBOR_Inside(fa->enums, &next));
+			VBOR_FOREACH(&vboc, &next, &next) {
+				assert(!VBOR_GetString(&next,
+				    (const char**)&val, &val_len));
+				VSB_printf(tl->sb, "\t%.*s\n", (int)val_len, val);
+			}
 			vcc_ErrWhere(tl, tl->t);
+			VBOC_Fini(&vboc);
+			VBOR_Fini(&next);
 			return;
 		}
+		VBOC_Fini(&vboc);
+		VBOR_Fini(&next);
 		vcc_do_enum(tl, fa, PF(tl->t));
 		SkipToken(tl, ID);
 	} else {
@@ -503,29 +528,52 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
     const char *extra, struct symbol *sym)
 {
 	vcc_type_t rfmt;
-	const char *cfunc;
+	const char *cfunc, *type;
 	struct expr *e1;
 	struct func_arg *fa, *fa2;
 	VTAILQ_HEAD(,func_arg) head;
 	struct token *tf, *t1;
-	const struct vjsn_val *vv, *vvp;
+	const struct vbor *vbor;
+	struct vboc vboc;
+	struct vboc vboc2;
+	struct vbor next;
+	const char *val = NULL;
+	size_t val_len = 0;
+	char *aval = NULL;
 	const char *sa, *extra_sep;
 	char ssa[64];
 	int n;
+	enum vbor_type vtype;
+	char *p;
+	unsigned b;
 
-	CAST_OBJ_NOTNULL(vv, priv, VJSN_VAL_MAGIC);
-	assert(vjsn_is_array(vv));
-	vv = VTAILQ_FIRST(&vv->children);
-	rfmt = VCC_Type(VTAILQ_FIRST(&vv->children)->value);
+	CAST_OBJ_NOTNULL(vbor, priv, VBOR_MAGIC);
+
+	assert(VBOR_What(vbor) == VBOR_ARRAY);
+	assert(!VBOR_Inside(vbor, &next));
+	VBOC_Init(&vboc, &next);
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOR_What(&next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	aval = strndup(val, val_len);
+	rfmt = VCC_Type(aval);
+	free(aval);
 	AN(rfmt);
-	vv = VTAILQ_NEXT(vv, list);
-	cfunc = vv->value;
-	vv = VTAILQ_NEXT(vv, list);
-	sa = vv->value;
-	if (*sa == '\0') {
+
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	cfunc = strndup(val, val_len);
+
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+
+	if (val_len == 0)
 		sa = NULL;
-	}
-	vv = VTAILQ_NEXT(vv, list);
+	else
+		sa = strndup(val, val_len);
+
 	if (sym->kind == SYM_METHOD) {
 		if (*e == NULL) {
 			VSB_cat(tl->sb, "Syntax error.");
@@ -547,42 +595,85 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		extra_sep = ", ";
 	}
 	VTAILQ_INIT(&head);
-	for (;vv != NULL; vv = VTAILQ_NEXT(vv, list)) {
-		assert(vjsn_is_array(vv));
+	while (VBOC_Next(&vboc, &next) < VBOR_END) {
+		assert(VBOR_What(&next) == VBOR_ARRAY);
 		fa = calloc(1, sizeof *fa);
 		AN(fa);
 		fa->cname = cfunc;
 		VTAILQ_INSERT_TAIL(&head, fa, list);
 
-		vvp = VTAILQ_FIRST(&vv->children);
-		if (!memcmp(vvp->value, "PRIV_", 5)) {
-			fa->result = vcc_priv_arg(tl, vvp->value, sym);
-			vvp = VTAILQ_NEXT(vvp, list);
-			if (vvp != NULL)
-				fa->name = vvp->value;
+		assert(!VBOR_Inside(&next, &next));
+		VBOC_Init(&vboc2, &next);
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		if (!memcmp(val, "PRIV_", 5)) {
+			val = strndup(val, val_len);
+			fa->result = vcc_priv_arg(tl, val, sym);
+			vtype = VBOC_Next(&vboc2, &next);
+			if (vtype != VBOR_END) {
+				assert(vtype == VBOR_TEXT_STRING);
+				if (!VBOR_GetString(&next, &val, &val_len))
+					fa->name = strndup(val, val_len);
+			}
 			continue;
 		}
-		fa->type = VCC_Type(vvp->value);
+		type = strndup(val, val_len);
+		fa->type = VCC_Type(type);
+		free(TRUST_ME(type));
 		AN(fa->type);
-		vvp = VTAILQ_NEXT(vvp, list);
-		if (vvp != NULL) {
-			fa->name = vvp->value;
-			vvp = VTAILQ_NEXT(vvp, list);
-			if (vvp != NULL) {
-				fa->val = vvp->value;
-				vvp = VTAILQ_NEXT(vvp, list);
-				if (vvp != NULL) {
-					fa->enums = vvp;
-					vvp = VTAILQ_NEXT(vvp, list);
-				}
+
+		vtype = VBOC_Next(&vboc2, &next);
+		if (vtype == VBOR_END)
+			continue;
+		assert(vtype == VBOR_TEXT_STRING || vtype == VBOR_NULL);
+		if (vtype == VBOR_TEXT_STRING) {
+			assert(!VBOR_GetString(&next,
+			    &val, &val_len));
+			fa->name = strndup(val, val_len);
+		} else
+			fa->name = NULL;
+
+		vtype = VBOC_Next(&vboc2, &next);
+		if (vtype == VBOR_END)
+			continue;
+		assert(vtype == VBOR_TEXT_STRING || vtype == VBOR_NULL);
+		if (vtype == VBOR_TEXT_STRING) {
+			assert(!VBOR_GetString(&next,
+			    &val, &val_len));
+			p = malloc(val_len + 1);
+			AN(p);
+			fa->val = p;
+			for (size_t i = 0; i < val_len; i++, p++) {
+				if (val[i] == '\\') {
+					if (val[i + 1] == '"') {
+						*p = '"';
+						i++;
+					}
+				} else
+					*p = val[i];
 			}
+			*p = '\0';
+		} else
+			fa->val = NULL;
+
+		vtype = VBOC_Next(&vboc2, &next);
+		if (vtype == VBOR_END)
+			continue;
+		VBOR_Copy(TRUST_ME(fa->enums), &next);
+
+		vtype = VBOC_Next(&vboc2, &next);
+		if (vtype == VBOR_END)
+			continue;
+		if (vtype == VBOR_BOOL) {
+			assert(!VBOR_GetBool(&next, &b));
+			if (sa != NULL && b == 1)
+				fa->optional = 1;
 		}
-		if (sa != NULL && vvp != NULL && vjsn_is_true(vvp)) {
-			fa->optional = 1;
-			vvp = VTAILQ_NEXT(vvp, list);
-		}
-		AZ(vvp);
+		assert(VBOC_Next(&vboc2, &next) == VBOR_END);
+		VBOC_Fini(&vboc2);
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 
 	VTAILQ_FOREACH(fa, &head, list) {
 		if (tl->t->tok == ')')
@@ -633,12 +724,13 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 		SkipToken(tl, ',');
 	}
 
-	if (sa != NULL)
+	if (sa != NULL) {
 		e1 = vcc_mk_expr(rfmt, "%s(ctx%s%s,\v+\n&(%s)\v+ {\n",
 		    cfunc, extra_sep, extra, sa);
-	else
+	} else {
 		e1 = vcc_mk_expr(rfmt, "%s(ctx%s%s\v+",
 		    cfunc, extra_sep, extra);
+	}
 	n = 0;
 	VTAILQ_FOREACH_SAFE(fa, &head, list, fa2) {
 		n++;
@@ -662,20 +754,21 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
 			e1 = vcc_expr_edit(tl, e1->fmt, "\v1,\n\v2",
 			    e1, fa->result);
 		} else if (!fa->optional) {
-			if (fa->name)
+			if (fa->name) {
 				VSB_printf(tl->sb, "Argument '%s' missing\n",
 				    fa->name);
-			else
+			} else
 				VSB_printf(tl->sb, "Argument %d missing\n", n);
 			vcc_ErrWhere(tl, tl->t);
 		}
+		free(TRUST_ME(fa->name));
 		free(fa);
 	}
-	if (sa != NULL) {
+	if (sa != NULL)
 		*e = vcc_expr_edit(tl, e1->fmt, "\v1\v-\n}\v-\n)", e1, NULL);
-	} else {
+	else
 		*e = vcc_expr_edit(tl, e1->fmt, "\v1\v-\n)", e1, NULL);
-	}
+	free(TRUST_ME(cfunc));
 	SkipToken(tl, ')');
 	vcc_AddUses(tl, tf, NULL, sym, XREF_READ);
 }
@@ -685,7 +778,7 @@ vcc_func(struct vcc *tl, struct expr **e, const void *priv,
  */
 
 void
-vcc_Eval_Func(struct vcc *tl, const struct vjsn_val *spec,
+vcc_Eval_Func(struct vcc *tl, const struct vbor *spec,
     const char *extra, struct symbol *sym)
 {
 	struct expr *e = NULL;
@@ -742,11 +835,10 @@ vcc_number(struct vcc *tl, struct expr **e, vcc_type_t fmt, const char *sign)
 			e1 = vcc_mk_expr(DURATION, "%s%.3f * %g",
 			    sign, t->num, vcc_DurationUnit(tl));
 			ERRCHK(tl);
-		} else if (fmt == REAL || t->tok == FNUM) {
+		} else if (fmt == REAL || t->tok == FNUM)
 			e1 = vcc_mk_expr(REAL, "%s%.3f", sign, t->num);
-		} else {
+		else
 			e1 = vcc_mk_expr(INT, "%s%.0f", sign, t->num);
-		}
 	}
 	e1->constant = EXPR_CONST;
 	*e = e1;

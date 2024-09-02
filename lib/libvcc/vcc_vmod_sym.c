@@ -39,9 +39,10 @@
 #include "vcc_compile.h"
 
 #include "libvcc.h"
-#include "vjsn.h"
+#include "vbor.h"
 
 #include "vcc_vmod.h"
+#include "vsb.h"
 
 struct vmod_obj {
 	unsigned		magic;
@@ -75,26 +76,38 @@ vcc_VmodObject(struct vcc *tl, struct symbol *sym)
 }
 
 static void
-alias_sym(struct vcc *tl, const struct symbol *psym, const struct vjsn_val *v)
+alias_sym(struct vcc *tl, const struct symbol *psym, const struct vbor *v)
 {
 	char *alias = NULL, *func = NULL;
 	struct symbol *sym;
 	struct vsb *buf;
+	struct vboc vboc;
+	struct vbor next;
+	const char *val = NULL;
+	size_t val_len = 0;
 
 	buf = VSB_new_auto();
 	AN(buf);
 
 	VCC_SymName(buf, psym);
-	VSB_printf(buf, ".%s", v->value);
+
+	VBOC_Init(&vboc, v);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+
+	VSB_printf(buf, ".%.*s", (int)val_len, val);
 	AZ(VSB_finish(buf));
 	REPLACE(alias, VSB_data(buf));
 
-	v = VTAILQ_NEXT(v, list);
-	assert(vjsn_is_string(v));
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 
 	VSB_clear(buf);
 	VCC_SymName(buf, psym);
-	VSB_printf(buf, ".%s", v->value);
+	VSB_printf(buf, ".%.*s", (int)val_len, val);
 	AZ(VSB_finish(buf));
 	REPLACE(func, VSB_data(buf));
 
@@ -107,51 +120,64 @@ alias_sym(struct vcc *tl, const struct symbol *psym, const struct vjsn_val *v)
 }
 
 static void
-func_restrict(struct vcc *tl, struct symbol *sym, vcc_kind_t kind, const struct vjsn_val *v)
+func_restrict(struct vcc *tl, struct symbol *sym, vcc_kind_t kind, const struct vbor *v)
 {
-	struct vjsn_val *vv;
+	struct vboc vboc;
+	struct vbor next;
+	const char *val = NULL;
+	size_t val_len = 0;
 
-	AN(v);
+	CHECK_OBJ_NOTNULL(v, VBOR_MAGIC);
 	AN(sym);
 
 	if (kind != SYM_FUNC && kind != SYM_METHOD)
 		return;
 
-	v = VTAILQ_NEXT(v, list);
-	if (!v || !vjsn_is_array(v))
+	assert(!VBOR_Inside(v, &next));
+	VBOC_Init(&vboc, &next);
+
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+
+	if (val_len != sizeof("$RESTRICT") - 1 || strncmp(val, "$RESTRICT", val_len))
 		return;
-	vv = VTAILQ_FIRST(&v->children);
-	AN(vv);
-	assert(vjsn_is_string(vv));
-	if (strcmp(vv->value, "$RESTRICT"))
-		return;
-	vv = VTAILQ_NEXT(vv, list);
-	AN(vv);
-	assert(vjsn_is_array(vv));
+
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(!VBOR_Inside(&next, &next));
 	sym->r_methods = 0;
-	vv = VTAILQ_FIRST(&vv->children);
-	unsigned s;
-	while (vv) {
-		s = 0;
-#define VCL_CTX(l,H)							\
-		if (strcmp(vv->value, #l) == 0) s = VCL_MET_##H;
+	VBOR_FOREACH(&vboc, &next, &next) {
+		unsigned s = 0;
+
+		assert(VBOR_What(&next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+#define VCL_CTX(l,H) \
+		if (VBOR_STRING_LITERAL_MATCH(#l, val, val_len)) s = VCL_MET_##H;
 #include "tbl/vcl_context.h"
 		if (!s) {
-			VSB_printf(tl->sb, "Error in vmod \"%s\", invalid scope for $Restrict: %s\n",sym->vmod_name, vv->value);
+			VSB_printf(tl->sb, "Error in vmod \"%s\", invalid scope for $Restrict: %.*s\n",sym->vmod_name, (int)val_len, val);
 			tl->err = 1;
 			break;
 		}
 		sym->r_methods |= s;
-		vv = VTAILQ_NEXT(vv,list);
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 static void
 func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
-    const struct vjsn_val *v, const struct vjsn_val *vv)
+    const struct vbor *v, const struct vbor *vv)
 {
+	struct vbor *vbor;
 	struct symbol *sym;
 	struct vsb *buf;
+	struct vboc vboc;
+	struct vbor next;
+	const char *val = NULL;
+	size_t val_len = 0;
+	char *type = NULL;
+
+	CHECK_OBJ_NOTNULL(vv, VBOR_MAGIC);
 
 	if (kind == SYM_ALIAS) {
 		alias_sym(tl, psym, v);
@@ -161,78 +187,110 @@ func_sym(struct vcc *tl, vcc_kind_t kind, const struct symbol *psym,
 	buf = VSB_new_auto();
 	AN(buf);
 
+	VBOC_Init(&vboc, v);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+
 	VCC_SymName(buf, psym);
-	VSB_printf(buf, ".%s", v->value);
+	VSB_printf(buf, ".%.*s", (int)val_len, val);
 	AZ(VSB_finish(buf));
 	sym = VCC_MkSym(tl, VSB_data(buf), SYM_MAIN, kind, VCL_LOW, VCL_HIGH);
 	AN(sym);
 	VSB_destroy(&buf);
 
+	ALLOC_OBJ(vbor, VBOR_MAGIC); // XXX: Find a way not to allocate this
+	VBOR_Copy(vbor, v);
+
 	if (kind == SYM_OBJECT) {
-		sym->eval_priv = v;
+		VBOR_Copy(vbor, &next);
+		sym->eval_priv = vbor;
 		sym->vmod_name = psym->vmod_name;
 		sym->r_methods = VCL_MET_INIT;
 		vcc_VmodObject(tl, sym);
 		vcc_VmodSymbols(tl, sym);
+		VBOC_Fini(&vboc);
+		VBOR_Fini(&next);
 		return;
 	}
 
 	if (kind == SYM_METHOD)
 		sym->extra = psym->rname;
 
-	v = VTAILQ_NEXT(v, list);
-
-	assert(vjsn_is_array(v));
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
 	sym->action = vcc_Act_Call;
 	sym->vmod_name = psym->vmod_name;
 	sym->eval = vcc_Eval_SymFunc;
-	sym->eval_priv = v;
-	v = VTAILQ_FIRST(&v->children);
-	assert(vjsn_is_array(v));
-	v = VTAILQ_FIRST(&v->children);
-	assert(vjsn_is_string(v));
-	sym->type = VCC_Type(v->value);
+	VBOR_Copy(vbor, &next);
+	sym->eval_priv = vbor;
+
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOR_What(&next) == VBOR_ARRAY);
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOR_What(&next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	type = strndup(val, val_len);
+	sym->type = VCC_Type(type);
+	free(type);
 	AN(sym->type);
 	sym->r_methods = VCL_MET_TASK_ALL;
 	func_restrict(tl, sym, kind, vv);
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 void
 vcc_VmodSymbols(struct vcc *tl, const struct symbol *sym)
 {
-	const struct vjsn *vj;
-	const struct vjsn_val *vv, *vv1, *vv2;
+	const struct vbor *vbor;
+	struct vboc vboc;
+	struct vboc vboc2;
+	struct vboc vboc3;
+	struct vbor next;
 	vcc_kind_t kind;
+	enum vbor_type type;
+	const char *val;
+	size_t val_len;
 
+	CAST_OBJ_NOTNULL(vbor, sym->eval_priv, VBOR_MAGIC);
 	if (sym->kind == SYM_VMOD) {
-		CAST_OBJ_NOTNULL(vj, sym->eval_priv, VJSN_MAGIC);
-		vv = VTAILQ_FIRST(&vj->value->children);
-	} else if (sym->kind == SYM_OBJECT) {
-		CAST_OBJ_NOTNULL(vv, sym->eval_priv, VJSN_VAL_MAGIC);
-	} else {
+		assert(VBOR_What(vbor) == VBOR_ARRAY);
+		assert(!VBOR_Inside(vbor, &next));
+		VBOC_Init(&vboc, &next);
+	} else if (sym->kind != SYM_OBJECT)
 		WRONG("symbol kind");
-	}
+	else
+		VBOC_Init(&vboc, vbor);
 
-	for (; vv != NULL; vv = VTAILQ_NEXT(vv, list)) {
-		if (!vjsn_is_array(vv))
+	while ((type = VBOC_Next(&vboc, &next)) < VBOR_END) {
+		val = NULL;
+		val_len = 0;
+		if (type != VBOR_ARRAY) {
 			continue;
-		vv1 = VTAILQ_FIRST(&vv->children);
-		AN(vv1);
-		assert(vjsn_is_string(vv1));
-		vv2 = VTAILQ_NEXT(vv1, list);
-		AN(vv2);
-		if (!vjsn_is_string(vv2))
-			continue;
+		}
 
+		assert(!VBOR_Inside(&next, &next));
+		VBOC_Init(&vboc2, &next);
+		assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		if ((type = VBOC_Next(&vboc2, &next)) != VBOR_TEXT_STRING)
+			continue;
 		kind = SYM_NONE;
-#define STANZA(UU, ll, ss) if (!strcmp(vv1->value, "$" #UU)) kind = ss;
-	STANZA_TBL
+#define STANZA(UU, ll, ss) \
+	if (VBOR_STRING_LITERAL_MATCH("$" #UU, val, val_len)) kind = ss;
+		STANZA_TBL
 #undef STANZA
 		if (kind != SYM_NONE) {
-			func_sym(tl, kind, sym, vv2, vv);
+			VBOC_Init(&vboc3, vboc.current);
+			assert(VBOC_Next(&vboc3, &next) == VBOR_ARRAY);
+			VBOC_Next(&vboc3, &next);
+			func_sym(tl, kind, sym, vboc2.current, &next);
+			VBOC_Fini(&vboc3);
 			ERRCHK(tl);
 		}
+		VBOC_Fini(&vboc2);
 	}
+	VBOC_Fini(&vboc);
+	VBOR_Fini(&next);
 }
 
 void v_matchproto_(sym_act_f)
@@ -241,8 +299,15 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	struct symbol *isym, *osym;
 	struct inifin *ifp;
 	struct vsb *buf;
-	const struct vjsn_val *vv, *vf;
-	int null_ok = 0;
+	const struct vbor *vbor;
+	struct vbor vbor2;
+	struct vboc vboc;
+	struct vboc vboc2;
+	struct vbor next;
+	const char *val = NULL;
+	size_t val_len = 0;
+	unsigned null_ok = -1;
+	size_t arr_len = 0;
 
 	(void)sym;
 	(void)t;
@@ -266,52 +331,70 @@ vcc_Act_New(struct vcc *tl, struct token *t, struct symbol *sym)
 	/* Scratch the generic INSTANCE type */
 	isym->type = osym->type;
 
-	CAST_OBJ_NOTNULL(vv, osym->eval_priv, VJSN_VAL_MAGIC);
-	// vv = object name
+	CAST_OBJ_NOTNULL(vbor, osym->eval_priv, VBOR_MAGIC);
+	// vbor = object name
 
 	isym->vmod_name = osym->vmod_name;
-	isym->eval_priv = vv;
+	isym->eval_priv = vbor;
 
-	vv = VTAILQ_NEXT(vv, list);
-	// vv = flags
-	assert(vjsn_is_object(vv));
-	VTAILQ_FOREACH(vf, &vv->children, list)
-		if (!strcmp(vf->name, "NULL_OK") && vjsn_is_true(vf))
-			null_ok = 1;
+	VBOC_Init(&vboc, vbor);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(VBOC_Next(&vboc, &next) == VBOR_MAP);
+	assert(!VBOR_Inside(&next, &next));
+	// vbor = flags
+
+	VBOR_FOREACH(&vboc2, &next, &next) {
+		assert(VBOR_What(&next) == VBOR_TEXT_STRING);
+		assert(!VBOR_GetString(&next, &val, &val_len));
+		assert(VBOC_Next(&vboc2, &next) < VBOR_END);
+		if (VBOR_STRING_LITERAL_MATCH("NULL_OK", val, val_len)) {
+			assert(!VBOR_GetBool(&next, &null_ok));
+			break;
+		}
+	}
 	if (!null_ok)
 		VTAILQ_INSERT_TAIL(&tl->sym_objects, isym, sideways);
 
-	vv = VTAILQ_NEXT(vv, list);
-	// vv = struct name
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	// vbor = struct name
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	Fh(tl, 0, "static %.*s *%s;\n\n", (int)val_len, val, isym->rname);
 
-	Fh(tl, 0, "static %s *%s;\n\n", vv->value, isym->rname);
-	vv = VTAILQ_NEXT(vv, list);
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(!VBOR_GetArraySize(&next, &arr_len));
+	assert(!VBOR_Inside(&next, &next));
+	VBOC_Init(&vboc2, &next);
+	assert(VBOC_Next(&vboc2, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next , &val, &val_len));
+	assert(VBOR_STRING_LITERAL_MATCH("$INIT", val, val_len));
 
-	vf = VTAILQ_FIRST(&vv->children);
-	vv = VTAILQ_NEXT(vv, list);
-	assert(vjsn_is_string(vf));
-	assert(!strcmp(vf->value, "$INIT"));
-
-	vf = VTAILQ_NEXT(vf, list);
-
+	assert(VBOC_Next(&vboc2, &vbor2) == VBOR_ARRAY);
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
 	buf = VSB_new_auto();
 	AN(buf);
 	VSB_printf(buf, "&%s, \"%s\"", isym->rname, isym->name);
 	AZ(VSB_finish(buf));
-	vcc_Eval_Func(tl, vf, VSB_data(buf), osym);
+	vcc_Eval_Func(tl, &vbor2, VSB_data(buf), osym);
 	VSB_destroy(&buf);
 	ERRCHK(tl);
 	SkipToken(tl, ';');
 	isym->def_e = tl->t;
 
-	vf = VTAILQ_FIRST(&vv->children);
-	assert(vjsn_is_string(vf));
-	assert(!strcmp(vf->value, "$FINI"));
+	assert(!VBOR_Inside(&next, &next));
+	VBOC_Init(&vboc, &next);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
+	assert(VBOR_STRING_LITERAL_MATCH("$FINI", val, val_len));
 
-	vf = VTAILQ_NEXT(vf, list);
-	vf = VTAILQ_FIRST(&vf->children);
-	vf = VTAILQ_NEXT(vf, list);
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(!VBOR_Inside(&next, &next));
+	VBOC_Init(&vboc, &next);
+	assert(VBOC_Next(&vboc, &next) == VBOR_ARRAY);
+	assert(!VBOR_Inside(&next, &next));
+	assert(VBOR_What(&next) == VBOR_TEXT_STRING);
+	assert(VBOC_Next(&vboc, &next) == VBOR_TEXT_STRING);
+	assert(!VBOR_GetString(&next, &val, &val_len));
 	ifp = New_IniFin(tl);
 	VSB_printf(ifp->fin, "\t\tif (%s)\n", isym->rname);
-	VSB_printf(ifp->fin, "\t\t\t\t%s(&%s);", vf->value, isym->rname);
+	VSB_printf(ifp->fin, "\t\t\t\t%.*s(&%s);", (int)val_len, val, isym->rname);
 }
