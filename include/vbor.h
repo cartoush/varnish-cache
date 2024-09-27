@@ -34,6 +34,15 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define VBOR_STRING_MATCH(str, str_len, val, val_len)	\
+	(str_len == val_len && !strncmp(str, val, val_len))
+
+#define VBOR_STRING_LITERAL_MATCH(str, val, val_len)	\
+	VBOR_STRING_MATCH(str, sizeof(str) - 1, val, val_len)
+
+#define VBOR_FOREACH(cursor, vbor, next) \
+	for (VBOC_Init(cursor, vbor); VBOC_Next(cursor, next) < VBOR_END;)
+
 struct vsb;
 
 struct vbor {
