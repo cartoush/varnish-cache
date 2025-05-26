@@ -127,7 +127,7 @@ VRE_error(struct vsb *vsb, int err)
 pcre2_code *
 VRE_unpack(const vre_t *code)
 {
-
+	pcre2_code *recode;
 	/* XXX: The ban code ensures that regex "lumps" are pointer-aligned,
 	 * but coming for example from a VMOD there is no guarantee. Should
 	 * we formally require that code is properly aligned?
@@ -135,7 +135,8 @@ VRE_unpack(const vre_t *code)
 	CHECK_OBJ_NOTNULL(code, VRE_MAGIC);
 	if (code->re == VRE_PACKED_RE) {
 		AZ(code->re_ctx);
-		return (TRUST_ME(code + 1));
+		assert(pcre2_serialize_decode(&recode, 1, (const uint8_t*)code + 1, NULL) == 1);
+		return (recode);
 	}
 	return (code->re);
 }
@@ -162,6 +163,8 @@ VRE_export(const vre_t *code, size_t *sz)
 {
 	pcre2_code *re;
 	vre_t *exp;
+	uint8_t *writehere = NULL;
+	size_t ssz;
 
 	CHECK_OBJ_NOTNULL(code, VRE_MAGIC);
 	re = VRE_unpack(code);
@@ -173,8 +176,9 @@ VRE_export(const vre_t *code, size_t *sz)
 
 	INIT_OBJ(exp, VRE_MAGIC);
 	exp->re = VRE_PACKED_RE;
-	memcpy(exp + 1, re, *sz);
-	*sz += sizeof(*exp);
+	writehere = (uint8_t*)exp + 1;
+	assert(pcre2_serialize_encode((const pcre2_code**)&re, 1, &writehere, &ssz, NULL) == 1);
+	*sz += ssz + 1;
 	return (exp);
 }
 
