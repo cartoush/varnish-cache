@@ -68,4 +68,8 @@ int VRE_sub(const vre_t *code, const char *subject, const char *replacement,
 void VRE_free(vre_t **);
 void VRE_quote(struct vsb *, const char *);
 
+int VRE_encode(const vre_t *vre, uint8_t **serialized, size_t *serialized_size);
+vre_t *VRE_decode(const uint8_t *serialized, size_t serialized_size);
+void VRE_serialize_free(uint8_t *serialized);
+
 #endif /* VRE_H_INCLUDED */

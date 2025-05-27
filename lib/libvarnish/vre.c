@@ -33,6 +33,7 @@
 #include <ctype.h>
 #include <string.h>
 #include <unistd.h>
+#include <stdint.h>
 
 #include "vdef.h"
 
@@ -106,6 +107,41 @@ VRE_compile(const char *pattern, unsigned options,
 	(void)jit;
 #endif
 	return (v);
+}
+
+int
+VRE_encode(const vre_t *code, uint8_t **serialized, size_t *serialized_size)
+{
+	pcre2_code *re;
+
+	CHECK_OBJ_NOTNULL(code, VRE_MAGIC);
+	*serialized = NULL;
+	assert(code->re == VRE_PACKED_RE);
+	AZ(code->re_ctx);
+	re = TRUST_ME(code + 1);
+
+	if (pcre2_serialize_encode((const pcre2_code**)&re, 1, serialized, serialized_size, NULL) != 1)
+		return (-1);
+	AN(serialized);
+	return (0);
+}
+
+void
+VRE_serialize_free(uint8_t *serialized)
+{
+	pcre2_serialize_free(serialized);
+}
+
+vre_t *
+VRE_decode(const uint8_t *serialized, size_t serialized_size)
+{
+	vre_t *vre;
+
+	ALLOC_OBJ(vre, VRE_MAGIC);
+	vre->re_ctx = NULL;
+	if (pcre2_serialize_decode(&vre->re, 1, serialized, NULL) != 1)
+		return (NULL);
+	return (vre);
 }
 
 int
