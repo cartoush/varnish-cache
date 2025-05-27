@@ -42,6 +42,8 @@
 #include "vcli_serve.h"
 #include "vend.h"
 #include "vmb.h"
+#include "vre.h"
+#include "vsb.h"
 
 /* cache_ban_build.c */
 void BAN_Build_Init(void);
@@ -336,15 +338,54 @@ static void
 ban_export(void)
 {
 	struct ban *b;
-	struct vsb *vsb;
+	struct vsb *vsb, *tmp;
+	int add = 0;
 	unsigned ln;
+	const uint8_t *begin, *bb;
+	const uint8_t *end;
+	struct ban_test btmp;
+	uint8_t *serialized;
+	size_t sz, osz;
+	vre_t *re;
 
 	Lck_AssertHeld(&ban_mtx);
 	ln = bans_persisted_bytes - bans_persisted_fragmentation;
 	vsb = VSB_new_auto();
 	AN(vsb);
-	VTAILQ_FOREACH_REVERSE(b, &ban_head, banhead_s, list)
-		AZ(VSB_bcat(vsb, b->spec, ban_len(b->spec)));
+	VTAILQ_FOREACH_REVERSE(b, &ban_head, banhead_s, list) {
+		tmp = VSB_new_auto();
+		begin = b->spec;
+		end = b->spec + ban_len(b->spec);
+		sz = 0;
+		add = 0;
+
+		while (begin < end) {
+			bb = begin;
+			ban_iter(&begin, &btmp);
+			if (btmp.oper == BANS_OPER_MATCH || btmp.oper == BANS_OPER_NMATCH) {
+				re = (vre_t*)btmp.arg2_spec;
+				osz = (begin - bb) - ((uint8_t*)re - bb);
+				AZ(VRE_encode(re, &serialized, &sz));
+				if (sz > osz)
+					add += sz - osz;
+				else
+					add -= osz - sz;
+
+				ln += add;
+				AZ(VSB_bcat(tmp, bb, (uint8_t*)re - (uint8_t*)bb));
+				AZ(VSB_bcat(tmp, serialized, sz));
+				VRE_serialize_free(serialized);
+			} else {
+				AZ(VSB_bcat(tmp, bb, begin - bb));
+			}
+		}
+		add = ban_len(b->spec) + add + BANS_HEAD_LEN;
+		vbe32enc(vsb->s_buf + BANS_LENGTH, add);
+		AZ(VSB_finish(tmp));
+		AZ(VSB_bcat(vsb, b->spec, BANS_HEAD_LEN));
+		AZ(VSB_bcat(vsb, VSB_data(tmp), VSB_len(tmp)));
+		VSB_destroy(&tmp);
+	}
 	AZ(VSB_finish(vsb));
 	assert(VSB_len(vsb) == ln);
 	STV_BanExport((const uint8_t *)VSB_data(vsb), VSB_len(vsb));
@@ -387,12 +428,21 @@ ban_info_drop(const uint8_t *ban, unsigned len)
  * also mark any older bans, with the same condition COMPLETED.
  */
 
-static void
+static size_t
 ban_reload(const uint8_t *ban, unsigned len)
 {
 	struct ban *b, *b2;
+	size_t sz = 0, written = 0;
+	int skip = 0;
 	int duplicate = 0;
 	vtim_real t0, t1, t2 = 9e99;
+	const uint8_t *begin, *bb;
+	const uint8_t *end;
+	const uint8_t *serialized;
+	struct ban_test btmp;
+	vre_t *re;
+	uint8_t tmp[len];
+
 	ASSERT_CLI();
 	Lck_AssertHeld(&ban_mtx);
 	assert(ban_holds > 0);
@@ -406,12 +456,38 @@ ban_reload(const uint8_t *ban, unsigned len)
 		assert(t1 < t2);
 		t2 = t1;
 		if (t1 == t0)
-			return;
+			skip = 1;
 		if (t1 < t0)
 			break;
 		if (ban_equal(b->spec, ban))
 			duplicate = 1;
 	}
+
+	begin = ban;
+	end = ban + ban_len(ban);
+
+	while (begin < end) {
+		bb = begin;
+		ban_iter(&begin, &btmp);
+		if (btmp.oper == BANS_OPER_MATCH || btmp.oper == BANS_OPER_NMATCH) {
+			memcpy(tmp + written, bb, (uint8_t*)&btmp.arg2_spec - bb);
+			sz = *((size_t*)&btmp.arg2_spec);
+			serialized = (uint8_t*)&(btmp.arg2_spec) + sizeof(size_t);
+			re = VRE_decode(serialized, sz);
+			memcpy(tmp + written, &re, sizeof(vre_t*));
+			written += sizeof(vre_t*);
+			begin = bb + (((uint8_t*)&btmp.arg2_spec - bb) + (sz + sizeof(size_t)));
+		} else {
+			memcpy(tmp + written, bb, begin - bb);
+			written += begin - bb;
+		}
+	}
+
+	if (written != 0)
+		len = written;
+
+	if (skip)
+		return (len);
 
 	VSC_C_main->bans++;
 	VSC_C_main->bans_added++;
@@ -420,7 +496,8 @@ ban_reload(const uint8_t *ban, unsigned len)
 	AN(b2);
 	b2->spec = malloc(len);
 	AN(b2->spec);
-	memcpy(b2->spec, ban, len);
+	memcpy(b2->spec, tmp, len);
+	vbe32enc(b2->spec + BANS_LENGTH, len);
 	if (ban[BANS_FLAGS] & BANS_FLAG_REQ) {
 		VSC_C_main->bans_req++;
 		b2->flags |= BANS_FLAG_REQ;
@@ -445,6 +522,7 @@ ban_reload(const uint8_t *ban, unsigned len)
 			VSC_C_main->bans_dups++;
 		}
 	}
+	return (len);
 }
 
 /*--------------------------------------------------------------------
@@ -466,7 +544,8 @@ BAN_Reload(const uint8_t *ptr, unsigned len)
 		 * the loops in BAN_Reload and ban_reload). */
 		l = ban_len(ptr);
 		assert(ptr + l <= pe);
-		ban_reload(ptr, l);
+		l = ban_reload(ptr, l);
+		assert(ptr + l <= pe);
 		ptr += l;
 	}
 	Lck_Unlock(&ban_mtx);
