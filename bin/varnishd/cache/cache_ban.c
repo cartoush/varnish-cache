@@ -343,8 +343,17 @@ ban_export(void)
 	ln = bans_persisted_bytes - bans_persisted_fragmentation;
 	vsb = VSB_new_auto();
 	AN(vsb);
-	VTAILQ_FOREACH_REVERSE(b, &ban_head, banhead_s, list)
+	VTAILQ_FOREACH_REVERSE(b, &ban_head, banhead_s, list) {
 		AZ(VSB_bcat(vsb, b->spec, ban_len(b->spec)));
+
+		const uint8_t *begin = b->spec;
+		const uint8_t *end = b->spec + ban_len(b->spec);
+		struct ban_test btmp;
+
+		while (begin < end) {
+			ban_iter(&begin, &btmp);
+		}
+	}
 	AZ(VSB_finish(vsb));
 	assert(VSB_len(vsb) == ln);
 	STV_BanExport((const uint8_t *)VSB_data(vsb), VSB_len(vsb));
@@ -415,6 +424,14 @@ ban_reload(const uint8_t *ban, unsigned len)
 
 	VSC_C_main->bans++;
 	VSC_C_main->bans_added++;
+
+	struct ban_test btmp;
+	const uint8_t *begin = ban;
+	const uint8_t *end = ban + ban_len(ban);
+
+	while (begin < end) {
+		ban_iter(&begin, &btmp);
+	}
 
 	b2 = ban_alloc();
 	AN(b2);
