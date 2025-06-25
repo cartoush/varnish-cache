@@ -38,20 +38,12 @@
 #include "cache_ban.h"
 
 #include "vend.h"
+#include "vsb.h"
 #include "vtim.h"
 #include "vnum.h"
 
 void BAN_Build_Init(void);
 void BAN_Build_Fini(void);
-
-struct ban_proto {
-	unsigned		magic;
-#define BAN_PROTO_MAGIC		0xd8adc494
-	unsigned		flags;		/* BANS_FLAG_* */
-
-	struct vsb		*vsb;
-	char			*err;
-};
 
 /*--------------------------------------------------------------------
  * Variables we can ban on
@@ -113,7 +105,13 @@ BAN_Build(void)
 void
 BAN_Abandon(struct ban_proto *bp)
 {
-
+	if (bp->orig != NULL) {
+		for (size_t i = 0; i < bp->narg; i++) {
+			if (bp->orig[i] != NULL)
+				free((char*)bp->orig[i]);
+		}
+		free(bp->orig);
+	}
 	CHECK_OBJ_NOTNULL(bp, BAN_PROTO_MAGIC);
 	VSB_destroy(&bp->vsb);
 	FREE_OBJ(bp);
@@ -322,6 +320,46 @@ BAN_AddTest(struct ban_proto *bp,
 		return (ban_add_spec(bp, pv, op, a3));
 }
 
+// int
+// BAN_build_from_orig(const char **av, int narg, struct ban *ban)
+// {
+// 	struct ban_proto *bp = BAN_Build();
+// 	const char *err;
+// 	// if (bp == NULL) {
+// 	// 	VCLI_Out(cli, "Out of Memory");
+// 	// 	VCLI_SetResult(cli, CLIS_CANT);
+// 	// 	return;
+// 	// }
+// 	for (size_t i = 0; i < narg; i += 4) {
+// 		err = BAN_AddTest(bp, av[i + 2], av[i + 3], av[i + 4]);
+// 		if (err)
+// 			break;
+// 	}
+
+// 	if (err == NULL) {
+// 		// XXX racy - grab wstat lock?
+// 		err = BAN_Commit(bp);
+// 	}
+
+// 	if (err != NULL) {
+// 		// VCLI_Out(cli, "%s", err);
+// 		BAN_Abandon(bp);
+// 		// VCLI_SetResult(cli, CLIS_PARAM);
+// 	}
+// 	return 0;
+// }
+
+void
+BAN_add_orig(struct ban_proto *bp, const char **orig, int narg)
+{
+	CHECK_OBJ_NOTNULL(bp, BAN_PROTO_MAGIC);
+	AN(orig);
+	for (size_t i = 0; i < narg; i++)
+		AN(orig[i]);
+	bp->orig = orig;
+	bp->narg = narg;
+}
+
 /*--------------------------------------------------------------------
  * We maintain ban_start as a pointer to the first element of the list
  * as a separate variable from the VTAILQ, to avoid depending on the
@@ -358,6 +396,8 @@ BAN_Commit(struct ban_proto *bp)
 		return (ban_error(bp, ban_build_err_no_mem));
 	VTAILQ_INIT(&b->objcore);
 
+	b->orig_spec = bp->orig;
+	b->narg = bp->narg;
 	b->spec = malloc(ln + BANS_HEAD_LEN);
 	if (b->spec == NULL) {
 		free(b);
@@ -403,8 +443,10 @@ BAN_Commit(struct ban_proto *bp)
 		/* Hunt down duplicates, and mark them as completed */
 		for (bi = VTAILQ_NEXT(b, list); bi != NULL;
 		    bi = VTAILQ_NEXT(bi, list)) {
+			int flags;
+			memcpy(&flags, &bi->spec[BANS_FLAGS], sizeof(int));
 			if (!(bi->flags & BANS_FLAG_COMPLETED) &&
-			    ban_equal(b->spec, bi->spec)) {
+			    ban_equal(b, bi->orig_spec, bi->narg, flags)) {
 				ban_mark_completed(bi);
 				VSC_C_main->bans_dups++;
 			}

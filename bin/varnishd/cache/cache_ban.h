@@ -131,6 +131,20 @@ struct ban {
 
 	VTAILQ_HEAD(,objcore)	objcore;
 	uint8_t			*spec;
+	const char		**orig_spec;
+	int			narg;
+};
+
+// XXX: temporary move here for dev purpose
+struct ban_proto {
+	unsigned		magic;
+#define BAN_PROTO_MAGIC		0xd8adc494
+	unsigned		flags;		/* BANS_FLAG_* */
+
+	const char		**orig;
+	int			narg;
+	struct vsb		*vsb;
+	char			*err;
 };
 
 VTAILQ_HEAD(banhead_s,ban);
@@ -153,7 +167,7 @@ void ban_info_drop(const uint8_t *ban, unsigned len);
 int ban_evaluate(struct worker *wrk, const uint8_t *bs, struct objcore *oc,
     const struct http *reqhttp, unsigned *tests);
 vtim_real ban_time(const uint8_t *banspec);
-int ban_equal(const uint8_t *bs1, const uint8_t *bs2);
+int ban_equal(const struct ban *b1, const char **b2_orig, int b2_narg, int b2_flags);
 void BAN_Free(struct ban *b);
 void ban_kick_lurker(void);
 

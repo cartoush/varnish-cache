@@ -609,6 +609,7 @@ struct ban_proto *BAN_Build(void);
 const char *BAN_AddTest(struct ban_proto *,
     const char *, const char *, const char *);
 const char *BAN_Commit(struct ban_proto *b);
+void BAN_add_orig(struct ban_proto *bp, const char **orig, int narg);
 void BAN_Abandon(struct ban_proto *b);
 
 /* cache_cli.c [CLI] */

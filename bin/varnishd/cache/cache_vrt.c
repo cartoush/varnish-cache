@@ -951,6 +951,14 @@ VRT_ban_string(VRT_CTX, VCL_STRING str)
 			break;
 
 		if (av[++i] == NULL) {
+
+			const char **orig = malloc(sizeof(char*) * (i - 1));
+			AN(orig);
+			for (size_t j = 0; j < i; j++) {
+				orig[j] = strdup(av[j]);
+				AN(orig[j]);
+			}
+
 			berr = BAN_Commit(bp);
 			if (berr == NULL)
 				bp = NULL;
