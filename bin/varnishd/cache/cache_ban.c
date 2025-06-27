@@ -32,6 +32,7 @@
 
 #include "config.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -370,10 +371,9 @@ ban_export(void)
 		AZ(VSB_bcat(vsb, &narg, sizeof(int)));
 		AZ(VSB_bcat(vsb, &b->spec + BANS_FLAGS, sizeof(int)));
 		for (size_t i = 0; i < b->narg; i++)
-			AZ(VSB_cat(vsb, b->orig_spec[i]));
+			AZ(VSB_bcat(vsb, b->orig_spec[i], strlen(b->orig_spec[i]) + 1));
 	}
 	AZ(VSB_finish(vsb));
-	// assert(VSB_len(vsb) == ln);
 	STV_BanExport((const uint8_t *)VSB_data(vsb), VSB_len(vsb));
 	VSB_destroy(&vsb);
 	VSC_C_main->bans_persisted_bytes =
@@ -465,7 +465,16 @@ ban_reload(const char **ban, unsigned len, vtim_real t0, int flags)
 	assert(len >= 0);
 	b2->spec = malloc(len);
 	AN(b2->spec);
+
+	uint64_t u;
+	memset(b2->spec, 0, BANS_HEAD_LEN);
+	memcpy(&u, &t0, sizeof(uint64_t));
+	vbe64enc(b2->spec + BANS_TIMESTAMP, u);
+	b2->spec[BANS_FLAGS] = b->flags & 0xff;
 	memcpy(b2->spec, VSB_data(bp->vsb), len);
+	len += BANS_HEAD_LEN;
+	memcpy(b2->spec + BANS_LENGTH, &len, sizeof(int));
+
 	if (b->spec[BANS_FLAGS] & BANS_FLAG_REQ) {
 		VSC_C_main->bans_req++;
 		b2->flags |= BANS_FLAG_REQ;
@@ -826,14 +835,11 @@ ccf_ban(struct cli *cli, const char * const *av, void *priv)
 		if (err)
 			break;
 		// Maybe move that inside ban_addtest
-		orig[i] = strdup(av[i]);
-		AN(orig[i]);
-		orig[i + 1] = strdup(av[i + 1]);
-		AN(orig[i + 1]);
-		orig[i + 2] = strdup(av[i + 2]);
-		AN(orig[i + 2]);
-		orig[i + 3] = strdup(av[i + 3]);
-		AN(orig[i + 3]);
+		for (size_t j = 0; j < 4; j++) {
+			orig[i + j] = strdup(av[i + j]);
+			AN(orig[i + j]);
+			
+		}
 		BAN_add_orig(bp, orig, narg);
 	}
 
