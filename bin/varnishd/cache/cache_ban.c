@@ -46,6 +46,7 @@
 #include "vcli_serve.h"
 #include "vend.h"
 #include "vmb.h"
+#include "vsb.h"
 
 /* cache_ban_build.c */
 void BAN_Build_Init(void);
@@ -102,10 +103,13 @@ BAN_Free(struct ban *b)
 	if (b->spec != NULL)
 		free(b->spec);
 	if (b->orig_spec != NULL) {
-		for (size_t i = 0; i < b->narg; i++) {
-			if (b->orig_spec[i] != NULL)
-				free((char*)b->orig_spec[i]);
-		}
+		// for (size_t i = 0; i < b->narg; i++) {
+		// 	if (b->orig_spec[i] != NULL) {
+		// 		fprintf(stderr, "%s %s %d orig_spec[%lu]: %s\n",
+		// 		        __FILE__, __FUNCTION__, __LINE__, i, b->orig_spec[i]);
+		// 		free((char*)b->orig_spec[i]);
+		// 	}
+		// }
 		free(b->orig_spec);
 	}
 	FREE_OBJ(b);
@@ -170,22 +174,15 @@ ban_len(const uint8_t *banspec)
 int
 ban_equal(const struct ban *b1, const char **b2_orig, int b2_narg, int b2_flags)
 {
-	// unsigned u;
-
-	/*
-	 * Compare two ban-strings.
-	 */
-	// u = ban_len(bs1);
-	// if (u != ban_len(bs2))
-	// 	return (0);
-
-	// return (!memcmp(bs1 + BANS_LENGTH, bs2 + BANS_LENGTH, u - BANS_LENGTH));
 	if (b1->narg != b2_narg)
 		return (0);
 	if (b2_flags & BANS_FLAG_NODEDUP)
 		return (0);
 	for (size_t i = 0; i < b1->narg; i++) {
-		if (strcmp(b1->orig_spec[i], b2_orig[i]))
+		if (b1->orig_spec[i] == NULL) {
+			if (b2_orig[i] != NULL)
+				return (0);
+		} else if (strcmp(b1->orig_spec[i], b2_orig[i]))
 			return (0);
 	}
 	return (1);
@@ -349,7 +346,7 @@ BAN_RefBan(struct objcore *oc, struct ban *b)
  * Compile a full ban list and export this area to the stevedores for
  * persistence.
  */
-
+#include <ctype.h>
 static void
 ban_export(void)
 {
@@ -363,15 +360,22 @@ ban_export(void)
 	AN(vsb);
 	VTAILQ_FOREACH_REVERSE(b, &ban_head, banhead_s, list) {
 		// maybe have to skip placeholder here
-		if (b->orig_spec == NULL)
+		if (b->orig_spec == NULL || !isascii(b->orig_spec[0][0]))
 			continue;
 		int narg;
 		AZ(VSB_bcat(vsb, b->spec + BANS_TIMESTAMP, sizeof(vtim_real)));
 		vbe32enc(&narg, b->narg);
 		AZ(VSB_bcat(vsb, &narg, sizeof(int)));
 		AZ(VSB_bcat(vsb, &b->spec + BANS_FLAGS, sizeof(int)));
-		for (size_t i = 0; i < b->narg; i++)
-			AZ(VSB_bcat(vsb, b->orig_spec[i], strlen(b->orig_spec[i]) + 1));
+		for (size_t i = 0; i < b->narg; i++) {
+			if (b->orig_spec[i] == NULL)
+				AZ(VSB_bcat(vsb, "\0\0\0\0", 4));
+			else {
+				fprintf(stderr, "%s %s %d: orig_spec[%lu]: %s\n",
+				        __FILE__, __FUNCTION__, __LINE__, i, b->orig_spec[i]);
+				AZ(VSB_bcat(vsb, b->orig_spec[i], strlen(b->orig_spec[i]) + 1));
+			}
+		}
 	}
 	AZ(VSB_finish(vsb));
 	STV_BanExport((const uint8_t *)VSB_data(vsb), VSB_len(vsb));
@@ -527,9 +531,18 @@ BAN_Reload(const uint8_t *ptr, unsigned len)
 		tmp = (const char*)ptr;
 		l = BANS_TIMESTAMP + BANS_LENGTH;
 		for (size_t i = 0; i < l; i++) {
-			orig[i] = strdup(tmp);
-			tmp += strlen(orig[i]) + 1;
-			l += strlen(orig[i]) + 1;
+			if (*tmp == '\0') {
+				AZ(tmp[1]);
+				AZ(tmp[2]);
+				AZ(tmp[3]);
+				orig[i] = NULL;
+				tmp += 4;
+				l += 4;
+			} else {
+				orig[i] = strdup(tmp);
+				tmp += strlen(orig[i]) + 1;
+				l += strlen(orig[i]) + 1;
+			}
 		}
 		assert(ptr + l <= pe);
 		ban_reload(orig, l, time, flags);
@@ -830,12 +843,17 @@ ccf_ban(struct cli *cli, const char * const *av, void *priv)
 	}
 	orig = malloc(sizeof(char*) * narg);
 	AN(orig);
+	memset(orig, 0, sizeof(char*) * narg);
 	for (i = 0; i < narg; i += 4) {
 		err = BAN_AddTest(bp, av[i + 2], av[i + 3], av[i + 4]);
 		if (err)
 			break;
 		// Maybe move that inside ban_addtest
 		for (size_t j = 0; j < 4; j++) {
+			fprintf(stderr, "%s %s %d: av[%lu] : %s\n",
+			        __FILE__, __FUNCTION__, __LINE__, i +j, av[i+j]);
+			if (av[i+j] == NULL)
+				continue;
 			orig[i + j] = strdup(av[i + j]);
 			AN(orig[i + j]);
 			

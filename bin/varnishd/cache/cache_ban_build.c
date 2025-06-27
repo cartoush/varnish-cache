@@ -354,8 +354,8 @@ BAN_add_orig(struct ban_proto *bp, const char **orig, int narg)
 {
 	CHECK_OBJ_NOTNULL(bp, BAN_PROTO_MAGIC);
 	AN(orig);
-	for (size_t i = 0; i < narg; i++)
-		AN(orig[i]);
+	// for (size_t i = 0; i < narg; i++)
+	// 	AN(orig[i]);
 	bp->orig = orig;
 	bp->narg = narg;
 }
