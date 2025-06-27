@@ -313,7 +313,9 @@ BAN_FindBan(vtim_real t0)
 	assert(ban_holds > 0);
 	b = BANIDX_lookup(t0);
 	VTAILQ_FOREACH_FROM(b, &ban_head, list) {
+		fprintf(stderr, "COUCOUCOUCOUCOUCOU\n");
 		t1 = ban_time(b->spec);
+		fprintf(stderr, "t0: %f t1: %f\n", t0, t1);
 		if (t1 == t0)
 			return (b);
 		if (t1 < t0)
@@ -346,7 +348,7 @@ BAN_RefBan(struct objcore *oc, struct ban *b)
  * Compile a full ban list and export this area to the stevedores for
  * persistence.
  */
-#include <ctype.h>
+
 static void
 ban_export(void)
 {
@@ -360,13 +362,15 @@ ban_export(void)
 	AN(vsb);
 	VTAILQ_FOREACH_REVERSE(b, &ban_head, banhead_s, list) {
 		// maybe have to skip placeholder here
-		if (b->orig_spec == NULL || !isascii(b->orig_spec[0][0]))
+		if (b->orig_spec == NULL)
 			continue;
 		int narg;
 		AZ(VSB_bcat(vsb, b->spec + BANS_TIMESTAMP, sizeof(vtim_real)));
 		vbe32enc(&narg, b->narg);
 		AZ(VSB_bcat(vsb, &narg, sizeof(int)));
 		AZ(VSB_bcat(vsb, &b->spec + BANS_FLAGS, sizeof(int)));
+		fprintf(stderr, "%s %s %d: NARG : %d %s\n",
+		        __FILE__, __FUNCTION__, __LINE__, b->narg, b->orig_spec[0]);
 		for (size_t i = 0; i < b->narg; i++) {
 			if (b->orig_spec[i] == NULL)
 				AZ(VSB_bcat(vsb, "\0\0\0\0", 4));
@@ -543,6 +547,8 @@ BAN_Reload(const uint8_t *ptr, unsigned len)
 				tmp += strlen(orig[i]) + 1;
 				l += strlen(orig[i]) + 1;
 			}
+			fprintf(stderr, "%s %s %d orig[%lu]: %s\n",
+			        __FILE__, __FUNCTION__, __LINE__, i, orig[i]);
 		}
 		assert(ptr + l <= pe);
 		ban_reload(orig, l, time, flags);
@@ -841,25 +847,27 @@ ccf_ban(struct cli *cli, const char * const *av, void *priv)
 		VCLI_SetResult(cli, CLIS_CANT);
 		return;
 	}
-	orig = malloc(sizeof(char*) * narg);
-	AN(orig);
-	memset(orig, 0, sizeof(char*) * narg);
-	for (i = 0; i < narg; i += 4) {
+	for (i = 0; i < narg + 1; i += 4) {
 		err = BAN_AddTest(bp, av[i + 2], av[i + 3], av[i + 4]);
 		if (err)
 			break;
-		// Maybe move that inside ban_addtest
-		for (size_t j = 0; j < 4; j++) {
-			fprintf(stderr, "%s %s %d: av[%lu] : %s\n",
-			        __FILE__, __FUNCTION__, __LINE__, i +j, av[i+j]);
-			if (av[i+j] == NULL)
-				continue;
-			orig[i + j] = strdup(av[i + j]);
-			AN(orig[i + j]);
-			
-		}
-		BAN_add_orig(bp, orig, narg);
 	}
+
+	orig = malloc(sizeof(char*) * (narg + 2));
+	AN(orig);
+	memset(orig, 0, sizeof(char*) * (narg + 2));
+	for (i = 0; i < narg + 2; i++) {
+		// fprintf(stderr, "%s %s %d: av[%d] %p : %s\n",
+		        // __FILE__, __FUNCTION__, __LINE__, i, &av[i], av[i]);
+		if (av[i] == NULL) {
+			orig[i] = NULL;
+			continue;
+		}
+		orig[i] = strdup(av[i]);
+		AN(orig[i]);
+	}
+
+	BAN_add_orig(bp, orig, narg + 2);
 
 	if (err == NULL) {
 		// XXX racy - grab wstat lock?

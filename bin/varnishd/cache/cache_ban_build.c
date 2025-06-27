@@ -32,6 +32,7 @@
 
 #include "config.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #include "cache_varnishd.h"
@@ -98,6 +99,8 @@ BAN_Build(void)
 		FREE_OBJ(bp);
 		return (NULL);
 	}
+	bp->narg = 0;
+	bp->orig = NULL;
 	return (bp);
 }
 
@@ -354,8 +357,6 @@ BAN_add_orig(struct ban_proto *bp, const char **orig, int narg)
 {
 	CHECK_OBJ_NOTNULL(bp, BAN_PROTO_MAGIC);
 	AN(orig);
-	// for (size_t i = 0; i < narg; i++)
-	// 	AN(orig[i]);
 	bp->orig = orig;
 	bp->narg = narg;
 }
@@ -398,6 +399,7 @@ BAN_Commit(struct ban_proto *bp)
 
 	b->orig_spec = bp->orig;
 	b->narg = bp->narg;
+	bp->orig = NULL;
 	b->spec = malloc(ln + BANS_HEAD_LEN);
 	if (b->spec == NULL) {
 		free(b);

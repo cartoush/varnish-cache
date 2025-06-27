@@ -955,7 +955,9 @@ VRT_ban_string(VRT_CTX, VCL_STRING str)
 			const char **orig = malloc(sizeof(char*) * (i - 1));
 			AN(orig);
 			for (size_t j = 0; j < i; j++) {
-				orig[j] = strdup(av[j]);
+				fprintf(stderr, "%s %s %d: orig[%lu]: %s\n",
+				        __FILE__, __FUNCTION__, __LINE__, j, orig[j]);
+				orig[j] = av[j] ? strdup(av[j]) : NULL;
 				AN(orig[j]);
 			}
 
