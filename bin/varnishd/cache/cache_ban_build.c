@@ -438,8 +438,22 @@ BAN_Commit(struct ban_proto *bp)
 	if (b->flags & BANS_FLAG_REQ)
 		VSC_C_main->bans_req++;
 
-	if (bi != NULL)
-		ban_info_new(b->spec, ln);	/* Notify stevedores */
+	if (bi != NULL) {
+		struct vsb *vsb = VSB_new_auto();
+		int fl = b->flags | BANS_FLAG_PLAIN;
+		VSB_bcat(vsb, &b->spec[BANS_TIMESTAMP], sizeof(vtim_real));
+		VSB_bcat(vsb, &b->narg, sizeof(int));
+		VSB_bcat(vsb, &fl, sizeof(int));
+		for (size_t i = 0; i < b->narg; i++) {
+			if (b->orig_spec[i] != NULL)
+				VSB_bcat(vsb, b->orig_spec[i], strlen(b->orig_spec[i]) + 1);
+			else
+				VSB_bcat(vsb, "\0\0\0\0", 4);
+		}
+		VSB_finish(vsb);
+		ban_info_new((const uint8_t*)VSB_data(vsb), VSB_len(vsb));	/* Notify stevedores */
+		VSB_destroy(&vsb);
+	}
 
 	if (cache_param->ban_dups) {
 		/* Hunt down duplicates, and mark them as completed */
@@ -448,7 +462,7 @@ BAN_Commit(struct ban_proto *bp)
 			int flags;
 			memcpy(&flags, &bi->spec[BANS_FLAGS], sizeof(int));
 			if (!(bi->flags & BANS_FLAG_COMPLETED) &&
-			    ban_equal(b, bi->orig_spec, bi->narg, flags)) {
+			    ban_equal_plain(b, bi->orig_spec, bi->narg, flags)) {
 				ban_mark_completed(bi);
 				VSC_C_main->bans_dups++;
 			}

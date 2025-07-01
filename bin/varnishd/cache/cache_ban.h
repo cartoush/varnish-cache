@@ -72,6 +72,7 @@
 #define BANS_FLAG_HTTP		(1<<3)
 #define BANS_FLAG_DURATION	(1<<4)
 #define BANS_FLAG_NODEDUP	(1<<5)
+#define BANS_FLAG_PLAIN		(1<<6)
 
 #define BANS_OPER_EQ		0x10
 #define BANS_OPER_OFF_		BANS_OPER_EQ
@@ -167,7 +168,8 @@ void ban_info_drop(const uint8_t *ban, unsigned len);
 int ban_evaluate(struct worker *wrk, const uint8_t *bs, struct objcore *oc,
     const struct http *reqhttp, unsigned *tests);
 vtim_real ban_time(const uint8_t *banspec);
-int ban_equal(const struct ban *b1, const char **b2_orig, int b2_narg, int b2_flags);
+int ban_equal(const uint8_t *bs1, const uint8_t *bs2);
+int ban_equal_plain(const struct ban *b1, const char **b2_orig, int b2_narg, int b2_flags);
 void BAN_Free(struct ban *b);
 void ban_kick_lurker(void);
 

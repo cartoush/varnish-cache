@@ -103,13 +103,11 @@ BAN_Free(struct ban *b)
 	if (b->spec != NULL)
 		free(b->spec);
 	if (b->orig_spec != NULL) {
-		// for (size_t i = 0; i < b->narg; i++) {
-		// 	if (b->orig_spec[i] != NULL) {
-		// 		fprintf(stderr, "%s %s %d orig_spec[%lu]: %s\n",
-		// 		        __FILE__, __FUNCTION__, __LINE__, i, b->orig_spec[i]);
-		// 		free((char*)b->orig_spec[i]);
-		// 	}
-		// }
+		for (size_t i = 0; i < b->narg; i++) {
+			if (b->orig_spec[i] != NULL) {
+				free((char*)b->orig_spec[i]);
+			}
+		}
 		free(b->orig_spec);
 	}
 	FREE_OBJ(b);
@@ -172,11 +170,28 @@ ban_len(const uint8_t *banspec)
 }
 
 int
-ban_equal(const struct ban *b1, const char **b2_orig, int b2_narg, int b2_flags)
+ban_equal(const uint8_t *bs1, const uint8_t *bs2)
+{
+	unsigned u;
+
+	/*
+	 * Compare two ban-strings.
+	 */
+	u = ban_len(bs1);
+	if (u != ban_len(bs2))
+		return (0);
+	if (bs1[BANS_FLAGS] & BANS_FLAG_NODEDUP)
+		return (0);
+
+	return (!memcmp(bs1 + BANS_LENGTH, bs2 + BANS_LENGTH, u - BANS_LENGTH));
+}
+
+int
+ban_equal_plain(const struct ban *b1, const char **b2_orig, int b2_narg, int b2_flags)
 {
 	if (b1->narg != b2_narg)
 		return (0);
-	if (b2_flags & BANS_FLAG_NODEDUP)
+	if (b1->spec[BANS_FLAGS] & BANS_FLAG_NODEDUP)
 		return (0);
 	for (size_t i = 0; i < b1->narg; i++) {
 		if (b1->orig_spec[i] == NULL) {
@@ -313,7 +328,6 @@ BAN_FindBan(vtim_real t0)
 	assert(ban_holds > 0);
 	b = BANIDX_lookup(t0);
 	VTAILQ_FOREACH_FROM(b, &ban_head, list) {
-		fprintf(stderr, "COUCOUCOUCOUCOUCOU\n");
 		t1 = ban_time(b->spec);
 		fprintf(stderr, "t0: %f t1: %f\n", t0, t1);
 		if (t1 == t0)
@@ -362,15 +376,14 @@ ban_export(void)
 	AN(vsb);
 	VTAILQ_FOREACH_REVERSE(b, &ban_head, banhead_s, list) {
 		// maybe have to skip placeholder here
-		if (b->orig_spec == NULL)
-			continue;
+		assert(!(b->flags & BANS_FLAG_PLAIN));
 		int narg;
+		int fl = b->flags | BANS_FLAG_PLAIN;
 		AZ(VSB_bcat(vsb, b->spec + BANS_TIMESTAMP, sizeof(vtim_real)));
 		vbe32enc(&narg, b->narg);
 		AZ(VSB_bcat(vsb, &narg, sizeof(int)));
-		AZ(VSB_bcat(vsb, &b->spec + BANS_FLAGS, sizeof(int)));
-		fprintf(stderr, "%s %s %d: NARG : %d %s\n",
-		        __FILE__, __FUNCTION__, __LINE__, b->narg, b->orig_spec[0]);
+		AZ(VSB_bcat(vsb, &fl, sizeof(int)));
+
 		for (size_t i = 0; i < b->narg; i++) {
 			if (b->orig_spec[i] == NULL)
 				AZ(VSB_bcat(vsb, "\0\0\0\0", 4));
@@ -423,7 +436,67 @@ ban_info_drop(const uint8_t *ban, unsigned len)
  */
 
 static void
-ban_reload(const char **ban, unsigned len, vtim_real t0, int flags)
+ban_reload(const uint8_t *ban, unsigned len)
+{
+	struct ban *b, *b2;
+	int duplicate = 0;
+	vtim_real t0, t1, t2 = 9e99;
+	ASSERT_CLI();
+	Lck_AssertHeld(&ban_mtx);
+	assert(ban_holds > 0);
+
+	t0 = ban_time(ban);
+	assert(len == ban_len(ban));
+
+	b = BANIDX_lookup(t0);
+	VTAILQ_FOREACH_FROM(b, &ban_head, list) {
+		t1 = ban_time(b->spec);
+		assert(t1 < t2);
+		t2 = t1;
+		if (t1 == t0)
+			return;
+		if (t1 < t0)
+			break;
+		if (ban_equal(b->spec, ban))
+			duplicate = 1;
+	}
+
+	VSC_C_main->bans++;
+	VSC_C_main->bans_added++;
+
+	b2 = ban_alloc();
+	AN(b2);
+	b2->spec = malloc(len);
+	AN(b2->spec);
+	memcpy(b2->spec, ban, len);
+	if (ban[BANS_FLAGS] & BANS_FLAG_REQ) {
+		VSC_C_main->bans_req++;
+		b2->flags |= BANS_FLAG_REQ;
+	}
+	if (duplicate)
+		VSC_C_main->bans_dups++;
+	if (duplicate || (ban[BANS_FLAGS] & BANS_FLAG_COMPLETED))
+		ban_mark_completed(b2);
+	if (b == NULL)
+		VTAILQ_INSERT_TAIL(&ban_head, b2, list);
+	else
+		VTAILQ_INSERT_BEFORE(b, b2, list);
+	bans_persisted_bytes += len;
+	VSC_C_main->bans_persisted_bytes = bans_persisted_bytes;
+
+	/* Hunt down older duplicates */
+	for (b = VTAILQ_NEXT(b2, list); b != NULL; b = VTAILQ_NEXT(b, list)) {
+		if (b->flags & BANS_FLAG_COMPLETED)
+			continue;
+		if (ban_equal(b->spec, ban)) {
+			ban_mark_completed(b);
+			VSC_C_main->bans_dups++;
+		}
+	}
+}
+
+static void
+ban_reload_plain(const char **ban, unsigned len, vtim_real t0, int flags)
 {
 	struct ban *b, *b2;
 	int duplicate = 0;
@@ -441,7 +514,7 @@ ban_reload(const char **ban, unsigned len, vtim_real t0, int flags)
 			return;
 		if (t1 < t0)
 			break;
-		if (ban_equal(b, ban, len, flags))
+		if (ban_equal_plain(b, ban, len, flags))
 			duplicate = 1;
 	}
 
@@ -452,7 +525,7 @@ ban_reload(const char **ban, unsigned len, vtim_real t0, int flags)
 		return;
 	}
 	const char *err;
-	for (size_t i = 0; i < len; i += 4) {
+	for (size_t i = 0; i + 4 < len; i += 4) {
 		err = BAN_AddTest(bp, ban[i + 2], ban[i + 3], ban[i + 4]);
 		if (err)
 			break;
@@ -461,6 +534,7 @@ ban_reload(const char **ban, unsigned len, vtim_real t0, int flags)
 		XXXAN(bp);
 		BAN_Abandon(bp);
 	}
+	AZ(VSB_finish(bp->vsb));
 
 	//reconstruction done
 
@@ -471,25 +545,25 @@ ban_reload(const char **ban, unsigned len, vtim_real t0, int flags)
 	AN(b2);
 	len = VSB_len(bp->vsb);
 	assert(len >= 0);
-	b2->spec = malloc(len);
+	b2->spec = malloc(len + BANS_HEAD_LEN);
 	AN(b2->spec);
 
 	uint64_t u;
 	memset(b2->spec, 0, BANS_HEAD_LEN);
 	memcpy(&u, &t0, sizeof(uint64_t));
 	vbe64enc(b2->spec + BANS_TIMESTAMP, u);
-	b2->spec[BANS_FLAGS] = b->flags & 0xff;
-	memcpy(b2->spec, VSB_data(bp->vsb), len);
+	b2->spec[BANS_FLAGS] = bp->flags & 0xff;
+	memcpy(b2->spec + BANS_HEAD_LEN, VSB_data(bp->vsb), len);
 	len += BANS_HEAD_LEN;
 	memcpy(b2->spec + BANS_LENGTH, &len, sizeof(int));
 
-	if (b->spec[BANS_FLAGS] & BANS_FLAG_REQ) {
+	if (flags & BANS_FLAG_REQ) {
 		VSC_C_main->bans_req++;
 		b2->flags |= BANS_FLAG_REQ;
 	}
 	if (duplicate)
 		VSC_C_main->bans_dups++;
-	if (duplicate || (b->spec[BANS_FLAGS] & BANS_FLAG_COMPLETED))
+	if (duplicate && (flags & BANS_FLAG_COMPLETED))
 		ban_mark_completed(b2);
 	if (b == NULL)
 		VTAILQ_INSERT_TAIL(&ban_head, b2, list);
@@ -502,7 +576,7 @@ ban_reload(const char **ban, unsigned len, vtim_real t0, int flags)
 	for (b = VTAILQ_NEXT(b2, list); b != NULL; b = VTAILQ_NEXT(b, list)) {
 		if (b->flags & BANS_FLAG_COMPLETED)
 			continue;
-		if (ban_equal(b, ban, len, flags)) {
+		if (ban_equal_plain(b, ban, len, flags)) {
 			ban_mark_completed(b);
 			VSC_C_main->bans_dups++;
 		}
@@ -516,8 +590,12 @@ ban_reload(const char **ban, unsigned len, vtim_real t0, int flags)
 void
 BAN_Reload(const uint8_t *ptr, unsigned len)
 {
+	const char *tmp;
+	const char **orig;
 	const uint8_t *pe;
+	unsigned narg;
 	unsigned l;
+	int flags = 0;
 
 	AZ(ban_shutdown);
 	pe = ptr + len;
@@ -526,33 +604,43 @@ BAN_Reload(const uint8_t *ptr, unsigned len)
 		/* XXX: This can be optimized by traversing the live
 		 * ban list together with the reload list (combining
 		 * the loops in BAN_Reload and ban_reload). */
-		l = ban_len(ptr);
-		const char *tmp = NULL;
-		const char **orig = malloc(sizeof(char*) * l);
-		vtim_real time = ban_time(ptr);
-		int flags = 0;
-		memcpy(&flags, ptr + BANS_FLAGS, sizeof(int));
-		tmp = (const char*)ptr;
-		l = BANS_TIMESTAMP + BANS_LENGTH;
-		for (size_t i = 0; i < l; i++) {
-			if (*tmp == '\0') {
-				AZ(tmp[1]);
-				AZ(tmp[2]);
-				AZ(tmp[3]);
-				orig[i] = NULL;
-				tmp += 4;
-				l += 4;
-			} else {
-				orig[i] = strdup(tmp);
-				tmp += strlen(orig[i]) + 1;
-				l += strlen(orig[i]) + 1;
+		if (*(ptr + BANS_FLAGS) & BANS_FLAG_PLAIN) {
+			// get av number
+			l = 0;
+			narg = ban_len(ptr);
+			orig = malloc(sizeof(char*) * narg);
+			vtim_real time = ban_time(ptr);
+			memcpy(&flags, ptr + BANS_FLAGS, sizeof(int));
+			tmp = (const char*)ptr + BANS_HEAD_LEN;
+			if (narg == 0) {
+				ban_reload_plain(orig, narg, time, flags);
+				ptr += BANS_HEAD_LEN;
+				continue;
 			}
-			fprintf(stderr, "%s %s %d orig[%lu]: %s\n",
-			        __FILE__, __FUNCTION__, __LINE__, i, orig[i]);
+			for (size_t i = 0; i < narg; i++) {
+				if (*tmp == '\0') {
+					AZ(tmp[1]);
+					AZ(tmp[2]);
+					AZ(tmp[3]);
+					orig[i] = NULL;
+					tmp += 4;
+					l += 4;
+				} else {
+					orig[i] = strdup(tmp);
+					tmp += strlen(orig[i]) + 1;
+					l += strlen(orig[i]) + 1;
+				}
+			}
+			assert(ptr + l <= pe);
+			ban_reload_plain(orig, narg, time, flags);
+			ptr += l + BANS_HEAD_LEN;
+		} else {
+			l = ban_len(ptr);
+			assert(ptr + l <= pe);
+			ban_reload(ptr, l);
+			ptr += l + BANS_HEAD_LEN;
 		}
-		assert(ptr + l <= pe);
-		ban_reload(orig, l, time, flags);
-		ptr += l;
+
 	}
 	Lck_Unlock(&ban_mtx);
 }
@@ -1086,7 +1174,19 @@ BAN_Compile(void)
 
 	/* Report the place-holder ban */
 	b = VTAILQ_FIRST(&ban_head);
-	ban_info_new(b->spec, ban_len(b->spec));
+	struct vsb *vsb = VSB_new_auto();
+	VSB_bcat(vsb, &b->spec[BANS_TIMESTAMP], sizeof(vtim_real));
+	VSB_bcat(vsb, &b->narg, sizeof(int));
+	VSB_bcat(vsb, &b->flags, sizeof(int));
+	for (size_t i = 0; i < b->narg; i++) {
+		if (b->orig_spec[i] != NULL)
+			VSB_bcat(vsb, b->orig_spec[i], strlen(b->orig_spec[i]) + 1);
+		else
+			VSB_bcat(vsb, "\0\0\0\0", 4);
+	}
+	VSB_finish(vsb);
+	ban_info_new((const uint8_t*)VSB_data(vsb), VSB_len(vsb));	/* Notify stevedores */
+	VSB_destroy(&vsb);
 
 	ban_export();
 
