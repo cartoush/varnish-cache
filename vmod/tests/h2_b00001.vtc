@@ -1,0 +1,63 @@
+varnishtest "VCL control over H2 GOAWAY"
+
+barrier b1 cond 2
+barrier b2 cond 2
+barrier b3 cond 2
+
+varnish v1 -arg "-p feature=+http2" -vcl {
+	import h2;
+	import std;
+
+	backend default none;
+
+	sub vcl_recv {
+		if (req.url ~ "away") {
+			h2.goaway();
+		}
+		return(synth(200));
+	}
+} -start
+
+client c1 {
+	stream 1 {
+		txreq
+		rxresp
+		barrier b1 sync
+		expect resp.status == 200
+	} -start
+
+	stream 3 {
+		barrier b1 sync
+		txreq -url "/away"
+		rxresp
+		barrier b2 sync
+		expect resp.status == 200
+	} -start
+
+	stream 5 {
+		barrier b2 sync
+		txreq
+		rxresp
+		barrier b3 sync
+		expect resp.status == 200
+	} -start
+
+	stream 7 {
+		barrier b3 sync
+		txreq
+		rxresp
+		expect resp.status == 200
+	} -start
+
+	stream 0 {
+		rxgoaway
+	} -run
+
+	stream 1 -wait
+	stream 3 -wait
+	stream 5 -wait
+	stream 7 -wait
+
+} -start
+
+client c1 -wait
