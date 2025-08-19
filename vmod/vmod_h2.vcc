@@ -86,6 +86,11 @@ $Restrict client
 Return how many RST frames classified as "rapid" the client is still
 allowed to send before the session is going to be closed.
 
+$Function VOID goaway()
+$Restrict client
+
+Triggers the sending of an HTTP2 GOAWAY frame.
+
 SEE ALSO
 ========
 

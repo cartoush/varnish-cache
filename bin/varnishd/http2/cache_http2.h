@@ -169,6 +169,7 @@ struct h2_sess {
 	int				winup_streams;
 	uint32_t			highest_stream;
 	int				goaway;
+	int				send_goaway;
 	int				bogosity;
 	int				do_sweep;
 

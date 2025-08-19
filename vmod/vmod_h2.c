@@ -100,3 +100,12 @@ vmod_rapid_reset_budget(VRT_CTX)
 
 	return (h2->rst_budget);
 }
+
+VCL_VOID
+vmod_goaway(VRT_CTX)
+{
+	struct h2_sess *h2 = h2get(ctx);
+
+	AN(h2);
+	h2->send_goaway = 1;
+}
