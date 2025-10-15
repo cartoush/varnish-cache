@@ -430,6 +430,7 @@ h2_new_session(struct worker *wrk, void *arg)
 		HTC_RxInit(h2->htc, h2->ws);
 		if (WS_Overflowed(h2->ws)) {
 			H2S_Lock_VSLb(h2, SLT_SessError, "H2: Empty Rx Workspace");
+			VSC_C_main->sc_internal_error++;
 			h2->error = H2CE_INTERNAL_ERROR;
 			break;
 		}

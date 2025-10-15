@@ -99,6 +99,7 @@ h2_fini(struct vdp_ctx *vdc, void **priv)
 
 	if (vdc->retval < 0) {
 		r2->error = H2SE_INTERNAL_ERROR; /* XXX: proper error? */
+		VSC_C_main->sc_internal_error++;
 		H2_Send_Get(vdc->wrk, r2->h2sess, r2);
 		H2_Send_RST(vdc->wrk, r2->h2sess, r2, r2->stream, r2->error);
 		H2_Send_Rel(r2->h2sess, r2);

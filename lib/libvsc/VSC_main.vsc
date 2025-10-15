@@ -700,6 +700,70 @@
 	were waiting for their windows to be credited when h2_window_timeout
 	triggered.
 
+.. varnish_vsc:: sc_protocol_error
+	:level: diag
+	:oneliner: H2 protocol error
+
+.. varnish_vsc:: sc_internal_error
+	:level: diag
+	:oneliner: H2 implementation fault
+
+.. varnish_vsc:: sc_flow_control_error
+	:level: diag
+	:oneliner: H2 flow-control limits exceeded
+
+.. varnish_vsc:: sc_settings_timeout
+	:level: diag
+	:oneliner: H2 settings not acknowledged
+
+.. varnish_vsc:: sc_stream_closed
+	:level: diag
+	:oneliner: H2 frame received for closed stream
+
+.. varnish_vsc:: sc_frame_size_error
+	:level: diag
+	:oneliner: H2 frame size incorrect
+
+.. varnish_vsc:: sc_refused_stream
+	:level: diag
+	:oneliner: H2 stream not processed
+
+.. varnish_vsc:: sc_cancel
+	:level: diag
+	:oneliner: H2 stream cancelled
+
+.. varnish_vsc:: sc_compression_error
+	:level: diag
+	:oneliner: H2 compression state not updated
+
+.. varnish_vsc:: sc_connect_error
+	:level: diag
+	:oneliner: TCP connection error for CONNECT method
+
+.. varnish_vsc:: sc_enhance_your_calm
+	:level: diag
+	:oneliner: processing capacity exceeded
+
+.. varnish_vsc:: sc_inadequate_security
+	:level: diag
+	:oneliner: H2 negotiated TLS parameters not acceptable
+
+.. varnish_vsc:: sc_h1_1_required
+	:level: diag
+	:oneliner: use HTTP/1.1 for the request
+
+.. varnish_vsc:: sc_missing_scheme
+	:level: diag
+	:oneliner: H2 missing :scheme pseudo-header
+
+.. varnish_vsc:: sc_broke_window
+	:level: diag
+	:oneliner: H2 stream out of window credits
+
+.. varnish_vsc:: sc_req_size
+	:level: diag
+	:oneliner: H2 header list exceeded http_req_size
+
 .. varnish_vsc:: client_resp_500
 	:level: diag
 	:group: wrk

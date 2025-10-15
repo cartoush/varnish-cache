@@ -223,6 +223,7 @@ H2_Send_Frame(struct worker *wrk, struct h2_sess *h2,
 		 * to the finale and be done with it.
 		 */
 		h2->error = H2CE_PROTOCOL_ERROR;
+		VSC_C_main->sc_protocol_error++;
 	} else if (len > 0) {
 		Lck_Lock(&h2->sess->mtx);
 		VSLb_bin(h2->vsl, SLT_H2TxBody, len, ptr);
@@ -294,6 +295,7 @@ h2_do_window(struct worker *wrk, struct h2_req *r2,
 		    h2->open_streams <= h2->winup_streams) {
 			VSLb(h2->vsl, SLT_SessError, "H2: window bankrupt");
 			h2->error = r2->error = H2CE_BANKRUPT;
+			VSC_C_main->sc_bankrupt++;
 		    }
 
 		assert(h2->winup_streams > 0);

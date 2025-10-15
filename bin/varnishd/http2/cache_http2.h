@@ -211,6 +211,8 @@ struct h2_sess {
 	// rst rate limit state
 	double				rst_budget;
 	vtim_real			last_rst;
+
+	struct VSC_C_main			*stats;
 };
 
 #define ASSERT_RXTHR(h2) do {assert(h2->rxthr == pthread_self());} while(0)

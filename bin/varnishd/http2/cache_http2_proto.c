@@ -305,11 +305,13 @@ h2_rx_ping(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 
 	if (h2->rxf_len != 8) { 			// rfc7540,l,2364,2366
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx ping with (len != 8)");
+		VSC_C_main->sc_frame_size_error++;
 		return (H2CE_FRAME_SIZE_ERROR);
 	}
 	AZ(h2->rxf_stream);				// rfc7540,l,2359,2362
 	if (h2->rxf_flags != 0)	{			// We never send pings
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx ping ack");
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR);
 	}
 	H2_Send_Get(wrk, h2, r2);
@@ -332,6 +334,7 @@ h2_rx_push_promise(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 
 	// rfc7540,l,2262,2267
 	H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx push promise");
+	VSC_C_main->sc_protocol_error++;
 	return (H2CE_PROTOCOL_ERROR);
 }
 
@@ -386,6 +389,7 @@ h2_rapid_reset_charge(struct worker *wrk, struct h2_sess *h2,
 	if (h2->rst_budget < 0) {
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: Hit RST limit. Closing session.");
 		h2e = H2CE_RAPID_RESET;
+		// VSC_C_main->sc_rapid_reset++;
 		H2_Send_GOAWAY(wrk, h2, r2, h2e);
 	}
 
@@ -403,6 +407,7 @@ h2_rx_rst_stream(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 
 	if (h2->rxf_len != 4) {			// rfc7540,l,2003,2004
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx rst with (len != 4)");
+		VSC_C_main->sc_frame_size_error++;
 		return (H2CE_FRAME_SIZE_ERROR);
 	}
 	if (r2 == NULL)
@@ -463,11 +468,14 @@ h2_rx_window_update(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 
 	if (h2->rxf_len != 4) {
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx winup with (len != 4)");
+		VSC_C_main->sc_frame_size_error++;
 		return (H2CE_FRAME_SIZE_ERROR);
 	}
 	wu = vbe32dec(h2->rxf_data) & ~(1LU<<31);
-	if (wu == 0)
+	if (wu == 0) {
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR);
+	}
 	if (r2 == NULL)
 		return (0);
 	Lck_Lock(&h2->sess->mtx);
@@ -477,8 +485,10 @@ h2_rx_window_update(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 	else if (r2->cond != NULL)
 		PTOK(pthread_cond_signal(r2->cond));
 	Lck_Unlock(&h2->sess->mtx);
-	if (r2->t_window >= (1LL << 31))
+	if (r2->t_window >= (1LL << 31)) {
+		VSC_C_main->sc_flow_control_error++;
 		return (H2SE_FLOW_CONTROL_ERROR);
+	}
 	return (0);
 }
 
@@ -603,6 +613,7 @@ h2_rx_settings(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 		if (h2->rxf_len > 0) {			// rfc7540,l,2047,2049
 			H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx settings ack with "
 			    "(len > 0)");
+			VSC_C_main->sc_frame_size_error++;
 			return (H2CE_FRAME_SIZE_ERROR);
 		}
 		return (0);
@@ -610,6 +621,7 @@ h2_rx_settings(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 		if (h2->rxf_len % 6) {			// rfc7540,l,2062,2064
 			H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx settings with "
 			    "((len %% 6) != 0)");
+			VSC_C_main->sc_protocol_error++;
 			return (H2CE_PROTOCOL_ERROR);
 		}
 		p = h2->rxf_data;
@@ -686,6 +698,7 @@ h2_end_headers(struct worker *wrk, struct h2_sess *h2,
 	assert(cl >= -2);
 	if (cl == -2) {
 		H2S_Lock_VSLb(h2, SLT_Debug, "Non-parseable Content-Length");
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR);
 	}
 
@@ -710,17 +723,20 @@ h2_end_headers(struct worker *wrk, struct h2_sess *h2,
 		if (cl > 0) {
 			H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx header with END_STREAM "
 			    "and content-length > 0");
+			VSC_C_main->sc_protocol_error++;
 			return (H2CE_PROTOCOL_ERROR); //rfc7540,l,1838,1840
 		}
 	}
 
 	if (req->http->hd[HTTP_HDR_METHOD].b == NULL) {
 		H2S_Lock_VSLb(h2, SLT_Debug, "Missing :method");
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR); //rfc7540,l,3087,3090
 	}
 
 	if (req->http->hd[HTTP_HDR_URL].b == NULL) {
 		H2S_Lock_VSLb(h2, SLT_Debug, "Missing :path");
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR); //rfc7540,l,3087,3090
 	}
 
@@ -730,6 +746,7 @@ h2_end_headers(struct worker *wrk, struct h2_sess *h2,
 	    (Tlen(req->http->hd[HTTP_HDR_METHOD]) != 7 ||
 	    strncmp(req->http->hd[HTTP_HDR_METHOD].b, "OPTIONS", 7))) {
 		H2S_Lock_VSLb(h2, SLT_BogoHeader, "Illegal :path pseudo-header");
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR); //rfc7540,l,3068,3071
 	}
 
@@ -742,6 +759,7 @@ h2_end_headers(struct worker *wrk, struct h2_sess *h2,
 	if (Pool_Task(wrk->pool, req->task, TASK_QUEUE_STR) != 0) {
 		r2->scheduled = 0;
 		r2->state = H2_S_CLOSED;
+		VSC_C_main->sc_refused_stream++;
 		return (H2SE_REFUSED_STREAM); //rfc7540,l,3326,3329
 	}
 	return (0);
@@ -760,11 +778,13 @@ h2_rx_headers(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 
 	if (r2 != NULL) {
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx headers on non-idle stream");
+		VSC_C_main->sc_protocol_error++;
 		return (H2CE_PROTOCOL_ERROR);	// rfc9113,l,887,891
 	}
 
 	if (h2->rxf_stream <= h2->highest_stream) {
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: new stream ID < highest stream");
+		VSC_C_main->sc_protocol_error++;
 		return (H2CE_PROTOCOL_ERROR);	// rfc7540,l,1153,1158
 	}
         /* NB: we don't need to guard the read of h2->open_streams
@@ -776,6 +796,7 @@ h2_rx_headers(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 		H2S_Lock_VSLb(h2, SLT_Debug,
 		    "H2: stream %u: Hit maximum number of "
 		    "concurrent streams", h2->rxf_stream);
+		VSC_C_main->sc_refused_stream++;
 		return (H2SE_REFUSED_STREAM);	// rfc7540,l,1200,1205
 	}
 	h2->highest_stream = h2->rxf_stream;
@@ -810,6 +831,7 @@ h2_rx_headers(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 	if (h2->rxf_flags & H2FF_HEADERS_PADDED) {
 		if (*p + 1 > l) {
 			H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx headers with pad length > frame len");
+			VSC_C_main->sc_protocol_error++;
 			return (H2CE_PROTOCOL_ERROR);	// rfc7540,l,1884,1887
 		}
 		l -= 1 + *p;
@@ -819,6 +841,7 @@ h2_rx_headers(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 		if (l < 5) {
 			H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx headers with incorrect "
 			    "priority data");
+			VSC_C_main->sc_protocol_error++;
 			return (H2CE_PROTOCOL_ERROR);
 		}
 		l -= 5;
@@ -856,6 +879,7 @@ h2_rx_continuation(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 	if (r2 == NULL || r2->state != H2_S_OPEN || r2->req != h2->new_req) {
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: rx unexpected CONT frame"
 		    " on stream %d", h2->rxf_stream);
+		VSC_C_main->sc_protocol_error++;
 		return (H2CE_PROTOCOL_ERROR);	// XXX spec ?
 	}
 	req = r2->req;
@@ -896,6 +920,7 @@ h2_rx_data(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 		return (0);
 
 	if (r2->state >= H2_S_CLOS_REM) {
+		VSC_C_main->sc_stream_closed++;
 		r2->error = H2SE_STREAM_CLOSED;
 		return (H2SE_STREAM_CLOSED); // rfc7540,l,1766,1769
 	}
@@ -918,6 +943,7 @@ h2_rx_data(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 			VSLb(h2->vsl, SLT_SessError,
 			    "H2: stream %u: Padding larger than frame length",
 			    h2->rxf_stream);
+			VSC_C_main->sc_protocol_error++;
 			r2->error = H2CE_PROTOCOL_ERROR;
 			if (r2->cond)
 				PTOK(pthread_cond_signal(r2->cond));
@@ -942,6 +968,7 @@ h2_rx_data(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 			    "H2: stream %u: Received data and Content-Length"
 			    " mismatch", h2->rxf_stream);
 			r2->error = H2SE_PROTOCOL_ERROR;
+			VSC_C_main->sc_protocol_error++;
 			if (r2->cond)
 				PTOK(pthread_cond_signal(r2->cond));
 			Lck_Unlock(&h2->sess->mtx);
@@ -956,6 +983,7 @@ h2_rx_data(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 		    "H2: stream %u: Exceeded connection receive window",
 		    h2->rxf_stream);
 		r2->error = H2CE_FLOW_CONTROL_ERROR;
+		VSC_C_main->sc_protocol_error++;
 		if (r2->cond)
 			PTOK(pthread_cond_signal(r2->cond));
 		Lck_Unlock(&h2->sess->mtx);
@@ -979,6 +1007,7 @@ h2_rx_data(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 		    "H2: stream %u: Exceeded stream receive window",
 		    h2->rxf_stream);
 		r2->error = H2SE_FLOW_CONTROL_ERROR;
+		VSC_C_main->sc_flow_control_error++;
 		if (r2->cond)
 			PTOK(pthread_cond_signal(r2->cond));
 		Lck_Unlock(&h2->sess->mtx);
@@ -1053,6 +1082,7 @@ h2_rx_data(struct worker *wrk, struct h2_sess *h2, struct h2_req *r2)
 			    " buffer",
 			    h2->rxf_stream);
 			r2->error = H2SE_INTERNAL_ERROR;
+			VSC_C_main->sc_internal_error++;
 			if (r2->cond)
 				PTOK(pthread_cond_signal(r2->cond));
 			Lck_Unlock(&h2->sess->mtx);
@@ -1240,6 +1270,7 @@ h2_vfp_body_fini(struct vfp_ctx *vc, struct vfp_entry *vfe)
 		H2_Send_Rel(h2, r2);
 		Lck_Lock(&h2->sess->mtx);
 		r2->error = H2SE_REFUSED_STREAM;
+		VSC_C_main->sc_refused_stream++;
 		Lck_Unlock(&h2->sess->mtx);
 	}
 
@@ -1335,6 +1366,7 @@ h2_procframe(struct worker *wrk, struct h2_sess *h2, h2_frame h2f)
 		/* No even streams, we don't do PUSH_PROMISE */
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: illegal stream (=%u)",
 		    h2->rxf_stream);
+		VSC_C_main->sc_protocol_error++;
 		return (H2CE_PROTOCOL_ERROR);
 	}
 
@@ -1345,6 +1377,7 @@ h2_procframe(struct worker *wrk, struct h2_sess *h2, h2_frame h2f)
 	if (h2->new_req != NULL && h2f != H2_F_CONTINUATION) {
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: expected continuation but "
 		    " received %s on stream %d", h2f->name, h2->rxf_stream);
+		VSC_C_main->sc_protocol_error++;
 		return (H2CE_PROTOCOL_ERROR);	// rfc7540,l,1859,1863
 	}
 
@@ -1386,6 +1419,7 @@ h2_stream_tmo(struct h2_sess *h2, const struct h2_req *r2, vtim_real now)
 	    now - r2->t_winupd > cache_param->h2_window_timeout)) {
 		VSLb(h2->vsl, SLT_Debug,
 		     "H2: stream %u: Hit h2_window_timeout", r2->stream);
+		VSC_C_main->sc_broke_window++;
 		h2e = H2SE_BROKE_WINDOW;
 	}
 
@@ -1393,6 +1427,7 @@ h2_stream_tmo(struct h2_sess *h2, const struct h2_req *r2, vtim_real now)
 	    now - r2->t_send > SESS_TMO(h2->sess, send_timeout)) {
 		VSLb(h2->vsl, SLT_Debug,
 		     "H2: stream %u: Hit send_timeout", r2->stream);
+		VSC_C_main->sc_cancel++;
 		h2e = H2SE_CANCEL;
 	}
 
@@ -1427,8 +1462,9 @@ h2_sweep(struct worker *wrk, struct h2_sess *h2)
 	h2e = h2->error;
 	now = VTIM_real();
 	if (h2e == NULL && h2->open_streams == 0 &&
-	    h2->sess->t_idle + cache_param->timeout_idle < now)
+	    h2->sess->t_idle + cache_param->timeout_idle < now) {
 		h2e = H2CE_NO_ERROR;
+	}
 
 	h2->do_sweep = 0;
 	VTAILQ_FOREACH_SAFE(r2, &h2->streams, list, r22) {
@@ -1548,6 +1584,7 @@ h2_rxframe(struct worker *wrk, struct h2_sess *h2)
 		HTC_Status(hs, &s, &r);
 		H2S_Lock_VSLb(h2, SLT_SessError, "H2: HTC %s (%s)", s, r);
 		h2e = H2CE_ENHANCE_YOUR_CALM;
+		VSC_C_main->sc_enhance_your_calm++;
 	}
 
 	if (h2e != NULL && h2e->connection) {

@@ -66,6 +66,7 @@ h2h_checkhdr(struct vsl_log *vsl, txt nm, txt val)
 
 	if (Tlen(nm) == 0) {
 		VSLb(vsl, SLT_BogoHeader, "Empty name");
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR);
 	}
 
@@ -86,12 +87,14 @@ h2h_checkhdr(struct vsl_log *vsl, txt nm, txt val)
 				VSLb(vsl, SLT_BogoHeader,
 				    "Illegal field header name (upper-case): %.*s",
 				    l, nm.b);
+				VSC_C_main->sc_protocol_error++;
 				return (H2SE_PROTOCOL_ERROR);
 			}
 			if (!vct_istchar(*p) || *p == ':') {
 				VSLb(vsl, SLT_BogoHeader,
 				    "Illegal field header name (non-token): %.*s",
 				    l, nm.b);
+				VSC_C_main->sc_protocol_error++;
 				return (H2SE_PROTOCOL_ERROR);
 			}
 			break;
@@ -108,6 +111,7 @@ h2h_checkhdr(struct vsl_log *vsl, txt nm, txt val)
 				VSLb(vsl, SLT_BogoHeader,
 				    "Illegal field value 0x%02x start %.*s",
 				    *p, l, nm.b);
+				VSC_C_main->sc_protocol_error++;
 				return (H2SE_PROTOCOL_ERROR);
 			}
 			state = FLD_VALUE;
@@ -117,6 +121,7 @@ h2h_checkhdr(struct vsl_log *vsl, txt nm, txt val)
 				VSLb(vsl, SLT_BogoHeader,
 				    "Illegal field value 0x%02x %.*s",
 				    *p, l, nm.b);
+				VSC_C_main->sc_protocol_error++;
 				return (H2SE_PROTOCOL_ERROR);
 			}
 			break;
@@ -128,6 +133,7 @@ h2h_checkhdr(struct vsl_log *vsl, txt nm, txt val)
 		VSLb(vsl, SLT_BogoHeader,
 		    "Illegal field value 0x%02x (end) at %.*s",
 		    val.e[-1], l, nm.b);
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR);
 	}
 	return (0);
@@ -166,6 +172,7 @@ h2h_addhdr(struct http *hp, struct h2h_decode *d)
 
 	if (Tlen(hdr) > cache_param->http_req_hdr_len) {
 		VSLb(hp->vsl, SLT_BogoHeader, "Header too large: %.20s", hdr.b);
+		VSC_C_main->sc_enhance_your_calm++;
 		return (H2SE_ENHANCE_YOUR_CALM);
 	}
 
@@ -178,8 +185,10 @@ h2h_addhdr(struct http *hp, struct h2h_decode *d)
 
 		/* Check HTTP token */
 		Tforeach(p, hdr) {
-			if (!vct_istchar(*p))
+			if (!vct_istchar(*p)) {
+				VSC_C_main->sc_protocol_error++;
 				return (H2SE_PROTOCOL_ERROR);
+			}
 		}
 	} else if (!Tstrcmp(nm, ":path")) {
 		hdr.b = val.b;
@@ -191,13 +200,16 @@ h2h_addhdr(struct http *hp, struct h2h_decode *d)
 			VSLb(hp->vsl, SLT_BogoHeader,
 			    "Illegal :path pseudo-header %.*s",
 			    (int)Tlen(val), val.b);
+			VSC_C_main->sc_protocol_error++;
 			return (H2SE_PROTOCOL_ERROR);
 		}
 
 		/* Path cannot contain LWS or CTL */
 		Tforeach(p, hdr) {
-			if (vct_islws(*p) || vct_isctl(*p))
+			if (vct_islws(*p) || vct_isctl(*p)) {
+				VSC_C_main->sc_protocol_error++;
 				return (H2SE_PROTOCOL_ERROR);
+			}
 		}
 	} else if (!Tstrcmp(nm, ":scheme")) {
 		/* XXX: What to do about this one? (typically
@@ -210,8 +222,10 @@ h2h_addhdr(struct http *hp, struct h2h_decode *d)
 
 		/* Check HTTP token */
 		Tforeach(p, val) {
-			if (!vct_istchar(*p))
+			if (!vct_istchar(*p)) {
+				VSC_C_main->sc_protocol_error++;
 				return (H2SE_PROTOCOL_ERROR);
+			}
 		}
 	} else if (!Tstrcmp(nm, ":authority")) {
 		/* NB: we inject "host" in place of "rity" for
@@ -226,6 +240,7 @@ h2h_addhdr(struct http *hp, struct h2h_decode *d)
 		VSLb(hp->vsl, SLT_BogoHeader,
 		    "Unknown pseudo-header: %.*s",
 		    vmin_t(int, Tlen(hdr), 20), hdr.b);
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR);	// rfc7540,l,2990,2992
 	}
 
@@ -233,6 +248,7 @@ h2h_addhdr(struct http *hp, struct h2h_decode *d)
 		VSLb(hp->vsl, SLT_BogoHeader,
 		    "Empty pseudo-header %.*s",
 		    (int)Tlen(nm), nm.b);
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR);
 	}
 
@@ -242,6 +258,7 @@ h2h_addhdr(struct http *hp, struct h2h_decode *d)
 			VSLb(hp->vsl, SLT_LostHeader,
 			    "Too many headers: %.*s",
 			    vmin_t(int, Tlen(hdr), 20), hdr.b);
+			VSC_C_main->sc_enhance_your_calm++;
 			return (H2SE_ENHANCE_YOUR_CALM);
 		}
 		hp->nhd++;
@@ -253,6 +270,7 @@ h2h_addhdr(struct http *hp, struct h2h_decode *d)
 		VSLb(hp->vsl, SLT_BogoHeader,
 		    "Duplicate pseudo-header %.*s",
 		    (int)Tlen(nm), nm.b);
+		VSC_C_main->sc_protocol_error++;
 		return (H2SE_PROTOCOL_ERROR);	// rfc7540,l,3158,3162
 	}
 
@@ -327,9 +345,11 @@ h2h_decode_hdr_fini(const struct h2_sess *h2)
 		VSLb(h2->new_req->http->vsl, SLT_BogoHeader,
 		    "HPACK compression error/fini (%s)", VHD_Error(d->vhd_ret));
 		ret = H2CE_COMPRESSION_ERROR;
+		VSC_C_main->sc_compression_error++;
 	} else if (d->error == NULL && !d->has_scheme) {
 		H2S_Lock_VSLb(h2, SLT_Debug, "Missing :scheme");
 		ret = H2SE_MISSING_SCHEME; //rfc7540,l,3087,3090
+		VSC_C_main->sc_missing_scheme++;
 	} else
 		ret = d->error;
 	FINI_OBJ(d);
@@ -384,6 +404,7 @@ h2h_decode_bytes(struct h2_sess *h2, const uint8_t *in, size_t in_l)
 			    "HPACK compression error (%s)",
 			    VHD_Error(d->vhd_ret));
 			d->error = H2CE_COMPRESSION_ERROR;
+			VSC_C_main->sc_compression_error++;
 			break;
 		} else if (d->vhd_ret == VHD_OK || d->vhd_ret == VHD_MORE) {
 			assert(in_u == in_l);
@@ -403,6 +424,7 @@ h2h_decode_bytes(struct h2_sess *h2, const uint8_t *in, size_t in_l)
 		case VHD_NAME:
 			assert(d->namelen == 0);
 			if (d->out_l - d->out_u < 2) {
+				VSC_C_main->sc_req_size++;
 				d->error = H2SE_REQ_SIZE;
 				break;
 			}
@@ -416,6 +438,7 @@ h2h_decode_bytes(struct h2_sess *h2, const uint8_t *in, size_t in_l)
 		case VHD_VALUE:
 			assert(d->namelen > 0);
 			if (d->out_l - d->out_u < 1) {
+				VSC_C_main->sc_req_size++;
 				d->error = H2SE_REQ_SIZE;
 				break;
 			}
@@ -432,6 +455,7 @@ h2h_decode_bytes(struct h2_sess *h2, const uint8_t *in, size_t in_l)
 
 		case VHD_BUF:
 			d->error = H2SE_REQ_SIZE;
+			VSC_C_main->sc_req_size++;
 			break;
 
 		default:
@@ -453,6 +477,7 @@ h2h_decode_bytes(struct h2_sess *h2, const uint8_t *in, size_t in_l)
 		/* Fatal error, the client exceeded both http_req_size
 		 * and h2_max_header_list_size. */
 		H2S_Lock_VSLb(h2, SLT_SessError, "Header list too large");
+		VSC_C_main->sc_enhance_your_calm++;
 		return (H2CE_ENHANCE_YOUR_CALM);
 	}
 
