@@ -42,7 +42,11 @@ libvarnishapi_la_LIBADD = \
 	${NET_LIBS} ${RT_LIBS} ${LIBM}
 
 if HAVE_LD_VERSION_SCRIPT
+if ENABLE_FILC
+libvarnishapi_la_LDFLAGS += -Wl,--version-script=$(srcdir)/libvarnishapi_filc.map
+else
 libvarnishapi_la_LDFLAGS += -Wl,--version-script=$(srcdir)/libvarnishapi.map
+endif
 else
 libvarnishapi_la_LDFLAGS += -export-symbols-regex '^V'
 endif

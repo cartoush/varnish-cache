@@ -150,3 +150,6 @@ witness.svg
 # Flexelint droppings
 _.fl
 _.fl.old
+
+# Generated .map file for Fil-C
+/lib/libvarnishapi/libvarnishapi_filc.map

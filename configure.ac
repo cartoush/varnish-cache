@@ -829,6 +829,27 @@ AC_ARG_ENABLE(oss-fuzz,
 
 AM_CONDITIONAL(ENABLE_OSS_FUZZ, [test "$enable_oss_fuzz" != no])
 
+# --enable-filc
+AC_ARG_ENABLE(filc,
+	AS_HELP_STRING([--enable-filc],
+	        [enable build with Fil-C]),
+	[],
+	[enable_filc=no])
+
+AM_CONDITIONAL([ENABLE_FILC], [test "$enable_filc" != no])
+
+if test "$enable_filc" != no; then
+  AC_CHECK_PROG(FILCC, filcc, filcc)
+  if test x"$FILCC" = x; then
+    AC_MSG_ERROR([filcc not in PATH])
+  fi
+  CC="$FILCC"
+  AC_MSG_NOTICE([Fil-C enabled, using $CC])
+  AC_CONFIG_COMMANDS([filc_map], [
+    ./lib/libvarnishapi/generate_filc_map.sh ./lib/libvarnishapi
+  ])
+fi
+
 # Command line for compiling VCL code.  I wish there were a simple way
 # to figure this out dynamically without introducing a run-time
 # dependency on libtool.
