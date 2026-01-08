@@ -854,8 +854,7 @@ vsm_findseg(const struct vsm *vd, const struct vsm_fantom *vf)
 	x = VSM_PRIV_HIGH(vf->priv);
 	if (x == vd->serial) {
 		vg = (struct vsm_seg *)vf->priv2;
-		if (!VALID_OBJ(vg, VSM_SEG_MAGIC) ||
-		    vg->serial != VSM_PRIV_LOW(vf->priv))
+		if (!VALID_OBJ(vg, VSM_SEG_MAGIC) || vg->serial != VSM_PRIV_LOW(vf->priv))
 			WRONG("Corrupt fantom");
 		return (vg);
 	}
@@ -870,7 +869,7 @@ vsm_findseg(const struct vsm *vd, const struct vsm_fantom *vf)
 	/* Update the fantom with the new priv so that lookups will be
 	 * fast on the next call. Note that this casts away the const. */
 	((struct vsm_fantom *)TRUST_ME(vf))->priv =
-	    VSM_PRIV_MERGE(vg->serial, vd->serial);
+	    (void*)VSM_PRIV_MERGE(vg->serial, vd->serial);
 	return (vg);
 }
 
@@ -916,8 +915,8 @@ VSM__itern(struct vsm *vd, struct vsm_fantom *vf)
 		}
 	}
 	memset(vf, 0, sizeof *vf);
-	vf->priv = VSM_PRIV_MERGE(vg->serial, vd->serial);
-	vf->priv2 = (uintptr_t)vg;
+	vf->priv = (void*)VSM_PRIV_MERGE(vg->serial, vd->serial);
+	vf->priv2 = (void*)vg;
 	vf->category = vg->av[4];
 	vf->ident = vg->av[5];
 	AN(vf->category);

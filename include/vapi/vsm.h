@@ -45,8 +45,8 @@ struct vsm;
  */
 
 struct vsm_fantom {
-	uintptr_t		priv;		/* VSM private */
-	uintptr_t		priv2;		/* VSM private */
+	void		*priv;		/* VSM private */
+	void		*priv2;		/* VSM private */
 	void			*b;		/* first byte of payload */
 	void			*e;		/* first byte past payload */
 	char			*category;
