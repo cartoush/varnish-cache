@@ -274,17 +274,17 @@ mgt_stdin_close(void *priv)
  * Autogenerate a -S file using strong random bits from the kernel.
  */
 
-static void
-mgt_secret_atexit(void)
-{
+// static void
+// mgt_secret_atexit(void)
+// {
 
-	/* Only master process */
-	if (getpid() != heritage.mgt_pid)
-		return;
-	VJ_master(JAIL_MASTER_FILE);
-	(void)unlink("_.secret");
-	VJ_master(JAIL_MASTER_LOW);
-}
+// 	/* Only master process */
+// 	if (getpid() != heritage.mgt_pid)
+// 		return;
+// 	VJ_master(JAIL_MASTER_FILE);
+// 	(void)unlink("_.secret");
+// 	VJ_master(JAIL_MASTER_LOW);
+// }
 
 static const char *
 make_secret(const char *dirname)
@@ -314,26 +314,26 @@ make_secret(const char *dirname)
 	}
 	closefd(&fdo);
 	VJ_master(JAIL_MASTER_LOW);
-	AZ(atexit(mgt_secret_atexit));
+	// AZ(atexit(mgt_secret_atexit));
 	return (fn);
 }
 
-static void
-mgt_Cflag_atexit(void)
-{
+// static void
+// mgt_Cflag_atexit(void)
+// {
 
-	/* Only master process */
-	if (getpid() != heritage.mgt_pid)
-		return;
-	if (arg_list_count("E")) {
-		vext_cleanup(1);
-		VJ_rmdir("vext_cache");
-	}
-	VJ_rmdir("vmod_cache");
-	VJ_rmdir("worker_tmpdir");
-	(void)chdir("/");
-	VJ_rmdir(workdir);
-}
+// 	/* Only master process */
+// 	if (getpid() != heritage.mgt_pid)
+// 		return;
+// 	if (arg_list_count("E")) {
+// 		vext_cleanup(1);
+// 		VJ_rmdir("vext_cache");
+// 	}
+// 	VJ_rmdir("vmod_cache");
+// 	VJ_rmdir("worker_tmpdir");
+// 	(void)chdir("/");
+// 	VJ_rmdir(workdir);
+// }
 
 /*--------------------------------------------------------------------*/
 
@@ -917,8 +917,8 @@ main(int argc, char * const *argv)
 	VJ_master(JAIL_MASTER_LOW);
 	closefd(&o);
 
-	if (C_flag)
-		AZ(atexit(mgt_Cflag_atexit));
+	// if (C_flag)
+	// 	AZ(atexit(mgt_Cflag_atexit));
 
 	/* If no -s argument specified, process default -s argument */
 	if (!arg_list_count("s"))

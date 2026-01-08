@@ -78,19 +78,19 @@ vut_daemon(struct VUT *vut)
 	return (varnish_daemon(0, 0));
 }
 
-static void
-vut_vpf_remove(void)
-{
+// static void
+// vut_vpf_remove(void)
+// {
 
-	CHECK_OBJ(&pfh_vut, VUT_MAGIC);
-	AN(pfh);
-	AN(pfh_vut.P_arg);
+// 	CHECK_OBJ(&pfh_vut, VUT_MAGIC);
+// 	AN(pfh);
+// 	AN(pfh_vut.P_arg);
 
-	VPF_Remove(pfh);
-	free(pfh_vut.P_arg);
-	ZERO_OBJ(&pfh_vut, sizeof pfh_vut);
-	pfh = NULL;
-}
+// 	VPF_Remove(pfh);
+// 	free(pfh_vut.P_arg);
+// 	ZERO_OBJ(&pfh_vut, sizeof pfh_vut);
+// 	pfh = NULL;
+// }
 
 static int v_matchproto_(VSLQ_dispatch_f)
 vut_dispatch(struct VSL_data *vsl, struct VSL_transaction * const trans[],
@@ -356,7 +356,7 @@ VUT_Setup(struct VUT *vut)
 		pfh_vut.error_f = vut->error_f;
 		vut->P_arg = NULL;
 
-		AZ(atexit(vut_vpf_remove));
+		// AZ(atexit(vut_vpf_remove));
 	}
 }
 

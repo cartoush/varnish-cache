@@ -68,22 +68,22 @@ mgt_SHM_static_alloc(const void *ptr, ssize_t size,
  * Exit handler that clears the owning pid from the SHMLOG
  */
 
-static void
-mgt_shm_atexit(void)
-{
+// static void
+// mgt_shm_atexit(void)
+// {
 
-	/* Do not let VCC kill our VSM */
-	if (getpid() != heritage.mgt_pid)
-		return;
-	VJ_master(JAIL_MASTER_FILE);
-	VSMW_Destroy(&mgt_vsmw);
-	if (!MGT_DO_DEBUG(DBG_VTC_MODE)) {
-		VJ_master(JAIL_MASTER_SYSTEM);
-		AZ(system("rm -rf " VSM_MGT_DIRNAME));
-		AZ(system("rm -rf " VSM_CHILD_DIRNAME));
-	}
-	VJ_master(JAIL_MASTER_LOW);
-}
+// 	/* Do not let VCC kill our VSM */
+// 	if (getpid() != heritage.mgt_pid)
+// 		return;
+// 	VJ_master(JAIL_MASTER_FILE);
+// 	VSMW_Destroy(&mgt_vsmw);
+// 	if (!MGT_DO_DEBUG(DBG_VTC_MODE)) {
+// 		VJ_master(JAIL_MASTER_SYSTEM);
+// 		AZ(system("rm -rf " VSM_MGT_DIRNAME));
+// 		AZ(system("rm -rf " VSM_CHILD_DIRNAME));
+// 	}
+// 	VJ_master(JAIL_MASTER_LOW);
+// }
 
 /*--------------------------------------------------------------------
  * Initialize VSM subsystem
@@ -107,7 +107,7 @@ mgt_SHM_Init(void)
 	heritage.proc_vsmw = mgt_vsmw;
 
 	/* Setup atexit handler */
-	AZ(atexit(mgt_shm_atexit));
+	// AZ(atexit(mgt_shm_atexit));
 }
 
 void

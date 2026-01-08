@@ -1114,19 +1114,19 @@ static struct cli_proto cli_vcl[] = {
 
 /*--------------------------------------------------------------------*/
 
-static void
-mgt_vcl_atexit(void)
-{
-	struct vclprog *vp, *vp2;
+// static void
+// mgt_vcl_atexit(void)
+// {
+// 	struct vclprog *vp, *vp2;
 
-	if (getpid() != heritage.mgt_pid)
-		return;
-	mgt_vcl_active = NULL;
-	while (!VTAILQ_EMPTY(&vclhead))
-		VTAILQ_FOREACH_SAFE(vp, &vclhead, list, vp2)
-			if (VTAILQ_EMPTY(&vp->dto))
-				mgt_vcl_del(vp);
-}
+// 	if (getpid() != heritage.mgt_pid)
+// 		return;
+// 	mgt_vcl_active = NULL;
+// 	while (!VTAILQ_EMPTY(&vclhead))
+// 		VTAILQ_FOREACH_SAFE(vp, &vclhead, list, vp2)
+// 			if (VTAILQ_EMPTY(&vp->dto))
+// 				mgt_vcl_del(vp);
+// }
 
 void
 mgt_vcl_init(void)
@@ -1140,7 +1140,7 @@ mgt_vcl_init(void)
 	e_poker->name = "vcl poker";
 	AZ(VEV_Start(mgt_evb, e_poker));
 
-	AZ(atexit(mgt_vcl_atexit));
+	// AZ(atexit(mgt_vcl_atexit));
 
 	VCLS_AddFunc(mgt_cls, MCF_AUTH, cli_vcl);
 }
