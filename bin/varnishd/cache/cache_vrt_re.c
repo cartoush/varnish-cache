@@ -97,7 +97,7 @@ VRT_regsub(VRT_CTX, int all, VCL_STRING str, VCL_REGEX re, VCL_STRING sub)
 {
 	struct vsb vsb[1];
 	const char *res;
-	uintptr_t snap;
+	void *snap;
 	int i;
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
@@ -107,7 +107,7 @@ VRT_regsub(VRT_CTX, int all, VCL_STRING str, VCL_REGEX re, VCL_STRING sub)
 	if (sub == NULL)
 		sub = "";
 
-	snap = WS_Snapshot(ctx->ws);
+	snap = (void*)WS_Snapshot(ctx->ws);
 	WS_VSB_new(vsb, ctx->ws);
 	i = VRE_sub(re, str, sub, vsb, &cache_param->vre_limits, all);
 	res = WS_VSB_finish(vsb, ctx->ws, NULL);

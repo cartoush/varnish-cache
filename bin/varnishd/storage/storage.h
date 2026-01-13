@@ -74,28 +74,34 @@ typedef void sml_free_f(struct storage *);
 #define VRTSTVVAR(nm,vt,ct,def) \
     typedef ct stv_var_##nm(const struct stevedore *);
 #include "tbl/vrt_stv_var.h"
-
+#include <stdint.h>
 /* VAI helpers -------------------------------------------------------*/
 
-static inline uint64_t
+static inline void *
 ptr2lease(const void *ptr)
 {
-	uint64_t r = (uintptr_t)ptr;
+	void *r = (void*)ptr;
 
-	if (sizeof(void *) < 8) //lint !e506 !e774
-		r <<= 1;
+	if (sizeof(void *) < 8) { //lint !e506 !e774
+		uintptr_t p = (uintptr_t)r;
+		p <<= 1;
+		r = (void*)p;
+	}
 
 	return (r);
 }
 
 static inline void *
-lease2ptr(uint64_t l)
+lease2ptr(void *l)
 {
 
-	if (sizeof(void *) < 8) //lint !e506 !e774
-		l >>= 1;
+	if (sizeof(void *) < 8) { //lint !e506 !e774
+		uintptr_t p = (uintptr_t)l;
+		p >>= 1;
+		l = (void*)p;
+	}
 
-	return ((void *)(uintptr_t)l);
+	return ((void *)l);
 }
 
 /*--------------------------------------------------------------------*/

@@ -574,7 +574,7 @@ int WS_Pipeline(struct ws *, const void *b, const void *e, unsigned rollback);
 
 /* cache_ws_common.c */
 void WS_Id(const struct ws *ws, char *id);
-void WS_Rollback(struct ws *, uintptr_t);
+void WS_Rollback(struct ws *, void*);
 
 /* http1/cache_http1_pipe.c */
 void V1P_Init(void);

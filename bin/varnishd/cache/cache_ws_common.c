@@ -81,13 +81,13 @@ WS_Overflowed(const struct ws *ws)
  */
 
 void
-WS_Rollback(struct ws *ws, uintptr_t pp)
+WS_Rollback(struct ws *ws, void *pp)
 {
 
 	WS_Assert(ws);
 
 	if (pp == 0)
-		pp = (uintptr_t)ws->s;
+		pp = (void*)ws->s;
 	ws_ClearOverflow(ws);
 	WS_Reset(ws, pp);
 }

@@ -143,8 +143,10 @@ vwp_dopipe(struct vwp *vwp)
 			assert(vwp->hpoll == 1);
 			pthread_exit(NULL);
 		}
-		CHECK_OBJ_NOTNULL(w[i], WAITED_MAGIC);
-		assert(w[i]->fd > 0);			// no stdin
+		struct waited *ww;
+		ww = zmkptr(w[i], (unsigned long)w[i]);
+		CHECK_OBJ_NOTNULL(ww, WAITED_MAGIC);
+		assert(ww->fd > 0);			// no stdin
 		vwp_add(vwp, w[i++]);
 		ss -= sizeof w[0];
 	}

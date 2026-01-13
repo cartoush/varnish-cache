@@ -301,7 +301,7 @@ h2_deliver(struct req *req, int sendbody)
 	struct h2_req *r2;
 	struct vsb resp[1];
 	struct vrt_ctx ctx[1];
-	uintptr_t ss;
+	void *ss;
 
 	CHECK_OBJ_NOTNULL(req, REQ_MAGIC);
 	CHECK_OBJ_NOTNULL(req->objcore, OBJCORE_MAGIC);

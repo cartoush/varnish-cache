@@ -37,7 +37,7 @@
 
 #define WS_REDZONE_END		'\x15'
 
-static const uintptr_t snap_overflowed = (uintptr_t)&snap_overflowed;
+static const void *snap_overflowed = (void*)&snap_overflowed;
 
 void
 WS_Assert(const struct ws *ws)
@@ -110,7 +110,7 @@ WS_Init(struct ws *ws, const char *id, void *space, unsigned len)
  */
 
 void
-WS_Reset(struct ws *ws, uintptr_t pp)
+WS_Reset(struct ws *ws, void *pp)
 {
 	char *p;
 
@@ -201,13 +201,18 @@ WS_Copy(struct ws *ws, const void *str, int len)
 	}
 	r = ws->f;
 	ws->f += bytes;
+	fprintf(stderr, "COPY : ws->f:");
+	zprint_ptr(ws->f);
+	fprintf(stderr, "\nws->s: ");
+	zprint_ptr(ws->s);
+	fprintf(stderr, "\n");
 	memcpy(r, str, len);
 	DSLb(DBG_WORKSPACE, "WS_Copy(%s, %p, %d) = %p", ws->id, ws, len, r);
 	WS_Assert(ws);
 	return (r);
 }
 
-uintptr_t
+void *
 WS_Snapshot(struct ws *ws)
 {
 
@@ -216,10 +221,10 @@ WS_Snapshot(struct ws *ws)
 	if (WS_Overflowed(ws)) {
 		DSLb(DBG_WORKSPACE, "WS_Snapshot(%s, %p) = overflowed",
 		    ws->id, ws);
-		return (snap_overflowed);
+		return ((void*)snap_overflowed);
 	}
 	DSLb(DBG_WORKSPACE, "WS_Snapshot(%s, %p) = %p", ws->id, ws, ws->f);
-	return ((uintptr_t)ws->f);
+	return ((void*)ws->f);
 }
 
 /*

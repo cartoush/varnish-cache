@@ -158,7 +158,7 @@ VCL_VOID v_matchproto_(td_std_syslog)
 vmod_syslog(VRT_CTX, VCL_INT fac, VCL_STRANDS s)
 {
 	const char *p;
-	uintptr_t sn;
+	void *sn;
 
 	CHECK_OBJ_NOTNULL(ctx, VRT_CTX_MAGIC);
 	sn = WS_Snapshot(ctx->ws);

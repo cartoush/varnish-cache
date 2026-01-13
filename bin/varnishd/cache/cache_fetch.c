@@ -156,7 +156,7 @@ Bereq_Rollback(VRT_CTX)
 	bo->vfp_filter_list = NULL;
 	bo->err_reason = NULL;
 	AN(bo->ws_bo);
-	WS_Rollback(bo->ws, bo->ws_bo);
+	WS_Rollback(bo->ws, (void*)bo->ws_bo);
 }
 
 /*--------------------------------------------------------------------

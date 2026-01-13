@@ -597,7 +597,7 @@ static void
 vcl_call_method(struct worker *wrk, struct req *req, struct busyobj *bo,
     void *specific, unsigned method, vcl_func_f *func, unsigned track_call)
 {
-	uintptr_t rws = 0, aws;
+	void *rws = 0, *aws;
 	struct vrt_ctx ctx;
 	struct vbitmap *vbm;
 	void *p;

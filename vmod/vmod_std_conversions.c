@@ -198,7 +198,7 @@ vmod_integer(VRT_CTX, struct VARGS(integer) *a)
 VCL_IP
 vmod_ip(VRT_CTX, struct VARGS(ip) *a)
 {
-	uintptr_t sn;
+	void *sn;
 	void *p;
 	VCL_IP retval = NULL, fb = bogo_ip;
 

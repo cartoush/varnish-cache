@@ -261,7 +261,7 @@ iovec_collect(struct iovec *buf, struct iovec *out, size_t l)
  * return a single lease via the vdc vscaret
  */
 static inline
-void vdpio_return_lease(const struct vdp_ctx *vdc, uint64_t lease)
+void vdpio_return_lease(const struct vdp_ctx *vdc, uint64_t *lease)
 {
 	struct vscaret *scaret;
 
@@ -271,7 +271,7 @@ void vdpio_return_lease(const struct vdp_ctx *vdc, uint64_t lease)
 
 	if (scaret->used == scaret->capacity)
 		ObjVAIreturn(vdc->wrk, vdc->vai_hdl, scaret);
-	VSCARET_ADD(scaret, lease);
+	VSCARET_ADD(scaret, (uint64_t*)lease);
 }
 
 /*

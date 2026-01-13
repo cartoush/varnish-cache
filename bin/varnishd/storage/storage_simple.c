@@ -31,6 +31,7 @@
 
 #include "config.h"
 
+#include <stdint.h>
 #include <stdlib.h>
 
 #include "cache/cache_varnishd.h"
@@ -338,7 +339,7 @@ sml_ai_viov_fill(struct viov *viov, struct storage *st)
 	viov->iov.iov_base = TRUST_ME(st->ptr);
 	viov->iov.iov_len = st->len;
 	viov->lease = ptr2lease(st);
-	VAI_ASSERT_LEASE(viov->lease);
+	VAI_ASSERT_LEASE((uint64_t)viov->lease);
 }
 
 // sml has no mechanism to notify "I got free space again now"
@@ -512,7 +513,7 @@ sml_ai_lease_boc(struct worker *wrk, vai_hdl vhdl, struct vscarab *scarab)
 			AZ(hdl->last);
 			if (next == NULL) {
 				hdl->last = hdl->st;
-				viov->lease = VAI_LEASE_NORET;
+				viov->lease = (void*)VAI_LEASE_NORET;
 			}
 			else {
 				CHECK_OBJ(next, STORAGE_MAGIC);
@@ -527,11 +528,11 @@ sml_ai_lease_boc(struct worker *wrk, vai_hdl vhdl, struct vscarab *scarab)
 			hdl->st = next;
 		}
 		else {
-			viov->lease = VAI_LEASE_NORET;
+			viov->lease = (void*)VAI_LEASE_NORET;
 			hdl->st_off += l;
 		}
 		hdl->returned += l;
-		VAI_ASSERT_LEASE(viov->lease);
+		VAI_ASSERT_LEASE((uint64_t)viov->lease);
 		r++;
 	}
 
@@ -551,15 +552,15 @@ sml_ai_return_buffers(struct worker *wrk, vai_hdl vhdl, struct vscaret *scaret)
 {
 	struct storage *st;
 	struct sml_hdl *hdl;
-	uint64_t *p;
+	uint64_t **p;
 
 	(void) wrk;
 	CAST_VAI_HDL_NOTNULL(hdl, vhdl, SML_HDL_MAGIC);
 
 	VSCARET_FOREACH(p, scaret) {
-		if (*p == VAI_LEASE_NORET)
+		if (*p == (uint64_t*)VAI_LEASE_NORET)
 			continue;
-		CAST_OBJ_NOTNULL(st, lease2ptr(*p), STORAGE_MAGIC);
+		CAST_OBJ_NOTNULL(st, lease2ptr((void*)*p), STORAGE_MAGIC);
 		if ((st->flags & STORAGE_F_BUFFER) == 0)
 			continue;
 		sml_stv_free(hdl->stv, st);
@@ -573,7 +574,7 @@ sml_ai_return(struct worker *wrk, vai_hdl vhdl, struct vscaret *scaret)
 {
 	struct storage *st;
 	struct sml_hdl *hdl;
-	uint64_t *p;
+	uint64_t **p;
 
 	(void) wrk;
 	CAST_VAI_HDL_NOTNULL(hdl, vhdl, SML_HDL_MAGIC);
@@ -587,16 +588,16 @@ sml_ai_return(struct worker *wrk, vai_hdl vhdl, struct vscaret *scaret)
 	// filter noret and last
 	VSCARET_LOCAL(todo, scaret->used);
 	VSCARET_FOREACH(p, scaret) {
-		if (*p == VAI_LEASE_NORET)
+		if (*p == (uint64_t*)VAI_LEASE_NORET)
 			continue;
-		CAST_OBJ_NOTNULL(st, lease2ptr(*p), STORAGE_MAGIC);
+		CAST_OBJ_NOTNULL(st, lease2ptr((void*)*p), STORAGE_MAGIC);
 		VSCARET_ADD(todo, *p);
 	}
 	VSCARET_INIT(scaret, scaret->capacity);
 
 	Lck_Lock(&hdl->boc->mtx);
 	VSCARET_FOREACH(p, todo) {
-		CAST_OBJ_NOTNULL(st, lease2ptr(*p), STORAGE_MAGIC);
+		CAST_OBJ_NOTNULL(st, lease2ptr((void*)*p), STORAGE_MAGIC);
 		if ((st->flags & STORAGE_F_BUFFER) != 0)
 			continue;
 		VTAILQ_REMOVE(&hdl->obj->list, st, list);
@@ -606,7 +607,7 @@ sml_ai_return(struct worker *wrk, vai_hdl vhdl, struct vscaret *scaret)
 	Lck_Unlock(&hdl->boc->mtx);
 
 	VSCARET_FOREACH(p, todo) {
-		CAST_OBJ_NOTNULL(st, lease2ptr(*p), STORAGE_MAGIC);
+		CAST_OBJ_NOTNULL(st, lease2ptr((void*)*p), STORAGE_MAGIC);
 #ifdef VAI_DBG
 		if (wrk->vsl != NULL)
 			VSLb(wrk->vsl, SLT_Debug, "ret %p", st);
@@ -796,7 +797,7 @@ sml_iterator(struct worker *wrk, struct objcore *oc,
 				break;
 
 			// sufficient space ensured by capacity check above
-			VSCARET_ADD(scaret, vio->lease);
+			VSCARET_ADD(scaret, (uint64_t*)vio->lease);
 
 #ifdef VAI_DBG
 			if (wrk->vsl)
@@ -813,7 +814,7 @@ sml_iterator(struct worker *wrk, struct objcore *oc,
 		VSCARAB_FOREACH_RESUME(vio, scarab) {
 			if (scaret->used == scaret->capacity)
 				ObjVAIreturn(wrk, hdl, scaret);
-			VSCARET_ADD(scaret, vio->lease);
+			VSCARET_ADD(scaret, (uint64_t*)vio->lease);
 		}
 
 		// we have now completed the scarab

@@ -401,7 +401,7 @@ struct busyobj {
 	const char		*vdp_filter_list;
 
 	struct ws		ws[1];
-	uintptr_t		ws_bo;
+	void			*ws_bo;
 	struct http		*bereq0;
 	struct http		*bereq;
 	struct http		*beresp;
@@ -511,7 +511,7 @@ struct req {
 	const struct director	*director_hint;
 	struct vcl		*vcl;
 
-	uintptr_t		ws_req;		/* WS above request data */
+	void			*ws_req;		/* WS above request data */
 
 	/* Timestamps */
 	vtim_real		t_first;	/* First timestamp logged */
@@ -782,7 +782,7 @@ typedef void vai_notify_cb(vai_hdl, void *priv);
  * an array of viovs, elsewhere also called an siov or sarray
  */
 struct viov {
-	uint64_t	lease;
+	void	*lease;
 	struct iovec	iov;
 };
 
@@ -868,7 +868,7 @@ struct vscarab {
 #define VSCARAB_ADD(scarab, val) VFLA_ADD(scarab, s, val)
 //lint -emacro(64, VSCARAB_ADD_IOV_NORET) weird flexelint bug?
 #define VSCARAB_ADD_IOV_NORET(scarab, vec)					\
-	VSCARAB_ADD(scarab, ((struct viov){.lease = VAI_LEASE_NORET, .iov = (vec)}))
+	VSCARAB_ADD(scarab, ((struct viov){.lease = (void*)VAI_LEASE_NORET, .iov = (vec)}))
 #define VSCARAB_LAST(scarab) ((scarab)->used > 0 ?				\
 	&(scarab)->s[(scarab)->used - 1] : NULL)
 
@@ -893,7 +893,7 @@ struct vscaret {
 #define VSCARET_MAGIC	0x9c1f3d7b
 	unsigned	capacity;
 	unsigned	used;
-	uint64_t	lease[] v_counted_by_(capacity);
+	uint64_t	*lease[] v_counted_by_(capacity);
 };
 
 #define VSCARET_SIZE(cap) VFLA_SIZE(vscaret, lease, cap)
@@ -990,10 +990,10 @@ unsigned WS_ReserveAll(struct ws *);
 void WS_Release(struct ws *ws, unsigned bytes);
 void WS_ReleaseP(struct ws *ws, const char *ptr);
 void WS_Assert(const struct ws *ws);
-void WS_Reset(struct ws *ws, uintptr_t);
+void WS_Reset(struct ws *ws, void*);
 void *WS_Alloc(struct ws *ws, unsigned bytes);
 void *WS_Copy(struct ws *ws, const void *str, int len);
-uintptr_t WS_Snapshot(struct ws *ws);
+void *WS_Snapshot(struct ws *ws);
 int WS_Allocated(const struct ws *ws, const void *ptr, ssize_t len);
 unsigned WS_Dump(const struct ws *ws, char, size_t off, void *buf, size_t len);
 

@@ -432,13 +432,13 @@ t_vscarab1(struct vscarab *scarab)
 
 	v = VSCARAB_GET(scarab);
 	AN(v);
-	v->lease = 12;
+	v->lease = (void*)12;
 
-	VSCARAB_ADD(scarab, (struct viov){.lease = 30});
+	VSCARAB_ADD(scarab, (struct viov){.lease = (void*)30});
 
 	sum = 0;
 	VSCARAB_FOREACH(v, scarab)
-		sum += v->lease;
+		sum += (uint64_t)v->lease;
 
 	assert(sum == 42);
 }

@@ -72,7 +72,7 @@ struct vcl		*vcl_active; /* protected by vcl_mtx */
 static struct vrt_ctx ctx_cli;
 static struct wrk_vpi wrk_vpi_cli;
 static struct ws ws_cli;
-static uintptr_t ws_snapshot_cli;
+static void *ws_snapshot_cli;
 static struct vsl_log vsl_cli;
 
 /*--------------------------------------------------------------------*/

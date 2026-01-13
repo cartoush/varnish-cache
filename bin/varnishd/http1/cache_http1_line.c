@@ -67,7 +67,7 @@ struct v1l {
 	struct vsl_log		*vsl;
 	uint64_t		cnt;	/* Flushed byte count */
 	struct ws		*ws;
-	uintptr_t		ws_snap;
+	void			*ws_snap;
 	void			**vdp_priv;
 };
 
@@ -82,7 +82,7 @@ V1L_Open(struct ws *ws, int *fd, struct vsl_log *vsl,
 {
 	struct v1l *v1l;
 	unsigned u;
-	uintptr_t ws_snap;
+	void *ws_snap;
 	size_t sz;
 
 	if (WS_Overflowed(ws))
@@ -139,7 +139,7 @@ V1L_Close(struct v1l **v1lp, uint64_t *cnt)
 {
 	struct v1l *v1l;
 	struct ws *ws;
-	uintptr_t ws_snap;
+	void *ws_snap;
 	stream_close_t sc;
 
 	AN(cnt);

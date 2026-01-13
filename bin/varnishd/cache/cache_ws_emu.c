@@ -60,7 +60,7 @@ struct ws_emu {
 	struct ws_alloc_head	head;
 };
 
-static const uintptr_t snap_overflowed = (uintptr_t)&snap_overflowed;
+static const void *snap_overflowed = (void*)&snap_overflowed;
 
 static struct ws_emu *
 ws_emu(const struct ws *ws)
@@ -194,7 +194,7 @@ ws_alloc_free(struct ws_emu *we, struct ws_alloc **wap)
 }
 
 void
-WS_Reset(struct ws *ws, uintptr_t pp)
+WS_Reset(struct ws *ws, void *pp)
 {
 	struct ws_emu *we;
 	struct ws_alloc *wa;
@@ -337,7 +337,7 @@ WS_Copy(struct ws *ws, const void *str, int len)
 	return (NULL);
 }
 
-uintptr_t
+void *
 WS_Snapshot(struct ws *ws)
 {
 	struct ws_emu *we;
@@ -348,7 +348,7 @@ WS_Snapshot(struct ws *ws)
 	assert(ws->r == NULL);
 	if (WS_Overflowed(ws)) {
 		DSLb(DBG_WORKSPACE, "WS_Snapshot(%p) = overflowed", ws);
-		return (snap_overflowed);
+		return ((void*)snap_overflowed);
 	}
 
 	we = ws_emu(ws);
@@ -356,7 +356,7 @@ WS_Snapshot(struct ws *ws)
 	CHECK_OBJ_ORNULL(wa, WS_ALLOC_MAGIC);
 	p = (wa == NULL ? ws->s : wa->ptr);
 	DSLb(DBG_WORKSPACE, "WS_Snapshot(%p) = %p", ws, p);
-	return ((uintptr_t)p);
+	return ((void*)p);
 }
 
 unsigned
