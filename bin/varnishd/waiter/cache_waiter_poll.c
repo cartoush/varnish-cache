@@ -36,8 +36,11 @@
 #include <poll.h>
 #include <stdlib.h>
 
+#include <sys/mman.h>
+
 #include "cache/cache_varnishd.h"
 
+#include "vapi/vsl_int.h"
 #include "waiter/waiter.h"
 #include "waiter/waiter_priv.h"
 #include "vtim.h"
@@ -54,6 +57,11 @@ struct vwp {
 	struct waited		**idx;
 	size_t			npoll;
 	size_t			hpoll;
+
+	struct waited **waiter_table;
+	pthread_mutex_t table_mutex;
+	size_t table_size;
+	size_t free_slots;
 };
 
 /*--------------------------------------------------------------------
@@ -89,6 +97,58 @@ vwp_extend_pollspace(struct vwp *vwp)
 
 	for (; inc > 0; inc--)
 		vwp->pollfd[vwp->npoll++].fd = -1;
+}
+
+static int vwp_alloc_slot(struct vwp *vwp, struct waited *wp) {
+	size_t i;
+	int ret = -1;
+
+	fprintf(stderr, "LOCKING : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+	pthread_mutex_lock(&vwp->table_mutex);
+	fprintf(stderr, "LOCKED : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+	for (i = 0; i < vwp->table_size; i++) {
+		if (vwp->waiter_table[i] == NULL) {
+			vwp->waiter_table[i] = wp;
+			vwp->free_slots--;
+			ret = (int)i;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&vwp->table_mutex);
+	fprintf(stderr, "UNLOCKED : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+	return ret;
+}
+
+static void
+vwp_free_slot(struct vwp *vwp, int slot)
+{
+    if (slot < 0 || (size_t)slot >= vwp->table_size)
+        return;
+ //    fprintf(stderr, "LOCKING : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+ //    pthread_mutex_lock(&vwp->table_mutex);
+	// fprintf(stderr, "LOCKED : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+    vwp->waiter_table[slot] = NULL;
+    vwp->free_slots++;
+    // pthread_mutex_unlock(&vwp->table_mutex);
+    // fprintf(stderr, "UNLOCKED : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+}
+
+static void
+vwp_grow_table(struct vwp *vwp)
+{
+    size_t new_size = vwp->table_size * 2;
+    struct waited **new_table;
+    new_table = realloc(vwp->waiter_table, new_size * sizeof(*new_table));
+    AN(new_table);
+    munmap(new_table, vwp->table_size * sizeof(*new_table));
+    new_table = mmap(NULL, new_size * sizeof(*new_table), PROT_READ | PROT_WRITE,
+                     MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    AN(new_table);
+    memcpy(new_table, vwp->waiter_table, vwp->table_size * sizeof(*new_table));
+    memset(new_table + vwp->table_size, 0, (new_size - vwp->table_size) * sizeof(*new_table));
+    vwp->waiter_table = new_table;
+    vwp->table_size = new_size;
+    VSL(SLT_Debug, NO_VXID, "vwp: Table grown to %zu slots", new_size);
 }
 
 /*--------------------------------------------------------------------*/
@@ -130,25 +190,52 @@ vwp_del(struct vwp *vwp, int n)
 static void
 vwp_dopipe(struct vwp *vwp)
 {
-	struct waited *w[128];
+	int slots[128];
 	ssize_t ss;
-	int i;
+	int i, slot;
+	struct waited *wp;
 
-	ss = read(vwp->pipes[0], w, sizeof w);
+	ss = read(vwp->pipes[0], slots, sizeof slots);
 	assert(ss > 0);
 	i = 0;
-	while (ss) {
-		if (w[i] == NULL) {
-			assert(ss == sizeof w[0]);
-			assert(vwp->hpoll == 1);
-			pthread_exit(NULL);
+	// fprintf(stderr, "ZEBI : w: ");
+	// zprint_ptr(w);
+	// fprintf(stderr, "\n");
+	while (ss > 0) {
+		slot = slots[i++];
+		ss -= sizeof slot;
+		wp = NULL;
+		fprintf(stderr, "LOCKING : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+		pthread_mutex_lock(&vwp->table_mutex);
+		fprintf(stderr, "LOCKED : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+		if ((size_t)slot < vwp->table_size && vwp->waiter_table[slot] != NULL) {
+			wp = vwp->waiter_table[slot];
+			vwp_free_slot(vwp, slot);
 		}
-		struct waited *ww;
-		ww = zmkptr(w[i], (unsigned long)w[i]);
-		CHECK_OBJ_NOTNULL(ww, WAITED_MAGIC);
-		assert(ww->fd > 0);			// no stdin
-		vwp_add(vwp, w[i++]);
-		ss -= sizeof w[0];
+		pthread_mutex_unlock(&vwp->table_mutex);
+		fprintf(stderr, "UNLOCKED : %s %s %d\n", __FILE__, __FUNCTION__, __LINE__);
+
+		if (wp == NULL) {
+			VSL(SLT_Error, NO_VXID, "vwp: Invalid/missing slot %d", slot);
+			continue;
+		}
+		CHECK_OBJ_NOTNULL(wp, WAITED_MAGIC);
+		assert(wp->fd > 0);
+		vwp_add(vwp, wp);
+		// if (w[i] == NULL) {
+		// 	assert(ss == sizeof w[0]);
+		// 	assert(vwp->hpoll == 1);
+		// 	pthread_exit(NULL);
+		// }
+		// struct waited *ww;
+		// ww = zmkptr(w[i], (unsigned long)w[i]);
+		// fprintf(stderr, "READ ZEBI : w[i]: ");
+		// zprint_ptr(ww);
+		// fprintf(stderr, "\n");
+		// CHECK_OBJ_NOTNULL(ww, WAITED_MAGIC);
+		// assert(ww->fd > 0);			// no stdin
+		// vwp_add(vwp, w[i++]);
+		// ss -= sizeof w[0];
 	}
 }
 
@@ -218,10 +305,24 @@ static int v_matchproto_(waiter_enter_f)
 vwp_enter(void *priv, struct waited *wp)
 {
 	struct vwp *vwp;
+	int slot;
 
 	CAST_OBJ_NOTNULL(vwp, priv, VWP_MAGIC);
 
-	if (write(vwp->pipes[1], &wp, sizeof wp) != sizeof wp)
+	// fprintf(stderr, "WRITE ZEBI : w[i]: ");
+	// zprint_ptr(wp);
+	// fprintf(stderr, "\n");
+	slot = vwp_alloc_slot(vwp, wp);
+	if (slot < 0) {
+		if (vwp->free_slots == 0)
+			vwp_grow_table(vwp);
+		slot = vwp_alloc_slot(vwp, wp);
+		if (slot < 0)
+			return (-1);
+	}
+	VSL(SLT_Debug, NO_VXID, "vwp: ENTER slot %d for fd %d", slot, wp->fd);
+
+	if (write(vwp->pipes[1], &slot, sizeof slot) != sizeof slot)
 		return (-1);
 	return (0);
 }
@@ -231,20 +332,25 @@ vwp_enter(void *priv, struct waited *wp)
 static void v_matchproto_(waiter_init_f)
 vwp_init(struct waiter *w)
 {
-	struct vwp *vwp;
-
-	CHECK_OBJ_NOTNULL(w, WAITER_MAGIC);
-	vwp = w->priv;
-	INIT_OBJ(vwp, VWP_MAGIC);
-	vwp->waiter = w;
-	AZ(pipe(vwp->pipes));
-	// XXX: set write pipe non-blocking
-
-	vwp->hpoll = 1;
-	vwp_extend_pollspace(vwp);
-	vwp->pollfd[0].fd = vwp->pipes[0];
-	vwp->pollfd[0].events = POLLIN;
-	PTOK(pthread_create(&vwp->thread, NULL, vwp_main, vwp));
+    struct vwp *vwp;
+    CHECK_OBJ_NOTNULL(w, WAITER_MAGIC);
+    vwp = w->priv;
+    INIT_OBJ(vwp, VWP_MAGIC);
+    vwp->waiter = w;
+    AZ(pipe(vwp->pipes));
+    vwp->hpoll = 1;
+    vwp_extend_pollspace(vwp);
+    vwp->pollfd[0].fd = vwp->pipes[0];
+    vwp->pollfd[0].events = POLLIN;
+    // New: Init shared table
+    vwp->table_size = 1024;  // Initial size; grow as needed
+    vwp->waiter_table = mmap(NULL, vwp->table_size * sizeof(*vwp->waiter_table),
+                             PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    AN(vwp->waiter_table);  // Check alloc
+    memset(vwp->waiter_table, 0, vwp->table_size * sizeof(*vwp->waiter_table));
+    vwp->free_slots = vwp->table_size;
+    pthread_mutex_init(&vwp->table_mutex, NULL);
+    PTOK(pthread_create(&vwp->thread, NULL, vwp_main, vwp));
 }
 
 /*--------------------------------------------------------------------
@@ -265,6 +371,10 @@ vwp_fini(struct waiter *w)
 	// XXX: set write pipe blocking
 	assert(write(vwp->pipes[1], &vp, sizeof vp) == sizeof vp);
 	PTOK(pthread_join(vwp->thread, &vp));
+
+	pthread_mutex_destroy(&vwp->table_mutex);
+	munmap(vwp->waiter_table, vwp->table_size * sizeof(*vwp->waiter_table));
+
 	closefd(&vwp->pipes[0]);
 	closefd(&vwp->pipes[1]);
 	free(vwp->pollfd);

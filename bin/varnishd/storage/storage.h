@@ -33,6 +33,7 @@
  *
  */
 
+#include <stdint.h>
 struct stevedore;
 struct sess;
 struct objcore;
