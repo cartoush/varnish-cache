@@ -85,8 +85,8 @@ extern const struct obj_methods SML_methods;
 struct object *SML_MkObject(const struct stevedore *, struct objcore *,
     void *ptr);
 void *SML_AllocBuf(struct worker *, const struct stevedore *, size_t,
-    uintptr_t *);
-void SML_FreeBuf(struct worker *, const struct stevedore *, uintptr_t);
+    void **);
+void SML_FreeBuf(struct worker *, const struct stevedore *, void *);
 
 storage_allocobj_f SML_allocobj;
 storage_panic_f SML_panic;

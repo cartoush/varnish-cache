@@ -95,7 +95,7 @@ struct hcb_y {
 	unsigned short		critbit;
 	unsigned char		ptr;
 	unsigned char		bitmask;
-	volatile uintptr_t	leaf[2];
+	volatile void		*leaf[2];
 	VSTAILQ_ENTRY(hcb_y)	list;
 };
 
@@ -103,7 +103,7 @@ struct hcb_y {
 #define HCB_BIT_Y		(1<<1)
 
 struct hcb_root {
-	volatile uintptr_t	origo;
+	volatile void	*origo;
 };
 
 static struct hcb_root	hcb_root;
@@ -117,52 +117,52 @@ static VTAILQ_HEAD(, objhead)	dead_h = VTAILQ_HEAD_INITIALIZER(dead_h);
  * Pointer accessor functions
  */
 static int
-hcb_is_node(uintptr_t u)
+hcb_is_node(void *u)
 {
-
-	return (u & HCB_BIT_NODE);
+	uintptr_t uu = (uintptr_t)u;
+	return (uu & HCB_BIT_NODE);
 }
 
 static int
-hcb_is_y(uintptr_t u)
+hcb_is_y(void *u)
 {
-
-	return (u & HCB_BIT_Y);
+	uintptr_t uu = (uintptr_t)u;
+	return (uu & HCB_BIT_Y);
 }
 
-static uintptr_t
+static void *
 hcb_r_node(const struct objhead *n)
 {
 
 	AZ((uintptr_t)n & (HCB_BIT_NODE | HCB_BIT_Y));
-	return (HCB_BIT_NODE | (uintptr_t)n);
+	return (void*)(HCB_BIT_NODE | (uintptr_t)n);
 }
 
 static struct objhead *
-hcb_l_node(uintptr_t u)
+hcb_l_node(void *u)
 {
-
-	assert(u & HCB_BIT_NODE);
-	AZ(u & HCB_BIT_Y);
-	return ((struct objhead *)(u & ~HCB_BIT_NODE));
+	uintptr_t uu = (uintptr_t)u;
+	assert(uu & HCB_BIT_NODE);
+	AZ(uu & HCB_BIT_Y);
+	return ((struct objhead *)(uu & ~HCB_BIT_NODE));
 }
 
-static uintptr_t
+static void *
 hcb_r_y(const struct hcb_y *y)
 {
-
+	uintptr_t yy = (uintptr_t)y;
 	CHECK_OBJ_NOTNULL(y, HCB_Y_MAGIC);
-	AZ((uintptr_t)y & (HCB_BIT_NODE | HCB_BIT_Y));
-	return (HCB_BIT_Y | (uintptr_t)y);
+	AZ((uintptr_t)yy & (HCB_BIT_NODE | HCB_BIT_Y));
+	return (void*)(HCB_BIT_Y | (uintptr_t)yy);
 }
 
 static struct hcb_y *
-hcb_l_y(uintptr_t u)
+hcb_l_y(void *u)
 {
-
-	AZ(u & HCB_BIT_NODE);
-	assert(u & HCB_BIT_Y);
-	return ((struct hcb_y *)(u & ~HCB_BIT_Y));
+	uintptr_t uu = (uintptr_t)u;
+	AZ(uu & HCB_BIT_NODE);
+	assert(uu & HCB_BIT_Y);
+	return ((struct hcb_y *)(uu & ~HCB_BIT_Y));
 }
 
 /*---------------------------------------------------------------------
@@ -195,14 +195,14 @@ static struct objhead *
 hcb_insert(const struct worker *wrk, struct hcb_root *root,
     const uint8_t *digest, struct objhead **noh)
 {
-	volatile uintptr_t *p;
-	uintptr_t pp;
+	volatile void **p;
+	void *pp;
 	struct hcb_y *y, *y2;
 	struct objhead *oh2;
 	unsigned s, s2;
 
 	p = &root->origo;
-	pp = *p;
+	pp = (void*)*p;
 	if (pp == 0) {
 		if (noh == NULL)
 			return (NULL);
@@ -220,7 +220,7 @@ hcb_insert(const struct worker *wrk, struct hcb_root *root,
 		s = (digest[y->ptr] & y->bitmask) != 0;
 		assert(s < 2);
 		p = &y->leaf[s];
-		pp = *p;
+		pp = (void*)*p;
 	}
 
 	if (pp == 0) {
@@ -255,8 +255,8 @@ hcb_insert(const struct worker *wrk, struct hcb_root *root,
 	p = &root->origo;
 	AN(*p);
 
-	while (hcb_is_y(*p)) {
-		y = hcb_l_y(*p);
+	while (hcb_is_y((void*)*p)) {
+		y = hcb_l_y((void*)*p);
 		CHECK_OBJ_NOTNULL(y, HCB_Y_MAGIC);
 		assert(y->critbit != y2->critbit);
 		if (y->critbit > y2->critbit)
@@ -278,7 +278,7 @@ static void
 hcb_delete(struct hcb_root *r, const struct objhead *oh)
 {
 	struct hcb_y *y;
-	volatile uintptr_t *p;
+	volatile void **p;
 	unsigned s;
 
 	if (r->origo == hcb_r_node(oh)) {
@@ -286,12 +286,12 @@ hcb_delete(struct hcb_root *r, const struct objhead *oh)
 		return;
 	}
 	p = &r->origo;
-	assert(hcb_is_y(*p));
+	assert(hcb_is_y((void*)*p));
 
 	y = NULL;
 	while (1) {
-		assert(hcb_is_y(*p));
-		y = hcb_l_y(*p);
+		assert(hcb_is_y((void*)*p));
+		y = hcb_l_y((void*)*p);
 		assert(y->ptr < DIGEST_LEN);
 		s = (oh->digest[y->ptr] & y->bitmask) != 0;
 		assert(s < 2);

@@ -107,7 +107,7 @@ struct stv_buffer {
 #define STV_BUFFER_MAGIC	0xf39cb6c2
 	const struct stevedore	*stv;
 	size_t			size;
-	uintptr_t		priv;
+	void			*priv;
 };
 
 struct stv_buffer *
@@ -115,7 +115,7 @@ STV_AllocBuf(struct worker *wrk, const struct stevedore *stv, size_t size)
 {
 	struct stv_buffer *stvbuf;
 	uint8_t *buf;
-	uintptr_t priv = 0;
+	void *priv = 0;
 
 	CHECK_OBJ_NOTNULL(wrk, WORKER_MAGIC);
 	CHECK_OBJ_NOTNULL(stv, STEVEDORE_MAGIC);
@@ -145,7 +145,7 @@ STV_FreeBuf(struct worker *wrk, struct stv_buffer **pstvbuf)
 {
 	struct stv_buffer *stvbuf;
 	const struct stevedore *stv;
-	uintptr_t priv;
+	void *priv;
 
 	CHECK_OBJ_NOTNULL(wrk, WORKER_MAGIC);
 	TAKE_OBJ_NOTNULL(stvbuf, pstvbuf, STV_BUFFER_MAGIC);

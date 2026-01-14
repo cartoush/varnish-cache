@@ -175,7 +175,7 @@ SML_allocobj(struct worker *wrk, const struct stevedore *stv,
 
 void * v_matchproto_(storage_allocbuf_t)
 SML_AllocBuf(struct worker *wrk, const struct stevedore *stv, size_t size,
-    uintptr_t *ppriv)
+    void **ppriv)
 {
 	struct storage *st;
 
@@ -191,12 +191,12 @@ SML_AllocBuf(struct worker *wrk, const struct stevedore *stv, size_t size,
 	assert(st->space >= size);
 	st->flags = STORAGE_F_BUFFER;
 	st->len = size;
-	*ppriv = (uintptr_t)st;
+	*ppriv = (void*)st;
 	return (st->ptr);
 }
 
 void v_matchproto_(storage_freebuf_t)
-SML_FreeBuf(struct worker *wrk, const struct stevedore *stv, uintptr_t priv)
+SML_FreeBuf(struct worker *wrk, const struct stevedore *stv, void *priv)
 {
 	struct storage *st;
 
