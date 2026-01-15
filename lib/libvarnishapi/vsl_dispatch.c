@@ -55,6 +55,9 @@
 #define VTX_BUFSIZE_MIN 64
 #define VTX_SHMCHUNKS 3
 
+#include <stdio.h>
+#include <stdfil.h>
+
 static const char * const vsl_t_names[VSL_t__MAX] = {
 	[VSL_t_unknown]	= "unknown",
 	[VSL_t_sess]	= "sess",

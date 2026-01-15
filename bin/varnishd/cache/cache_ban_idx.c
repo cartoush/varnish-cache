@@ -45,6 +45,9 @@
 #include "cache_varnishd.h"
 #include "cache_ban.h"
 
+#include <stdio.h>
+#include <stdfil.h>
+
 struct metaban {
 	unsigned		magic;
 #define BANIDX_MAGIC		0x39b799f8

@@ -49,6 +49,9 @@
 
 #include "VSC_vcp.h"
 
+#include <stdio.h>
+#include <stdfil.h>
+
 struct conn_pool;
 static inline int vcp_cmp(const struct conn_pool *a, const struct conn_pool *b);
 

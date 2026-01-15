@@ -44,6 +44,9 @@
 #include <vtree.h>
 #include <vsa.h>
 
+#include <stdio.h>
+#include <stdfil.h>
+
 #define ACL_MAXADDR	(sizeof(struct in6_addr) + 1)
 
 VRBT_HEAD(acl_tree, acl_e);

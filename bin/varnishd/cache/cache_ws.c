@@ -201,11 +201,6 @@ WS_Copy(struct ws *ws, const void *str, int len)
 	}
 	r = ws->f;
 	ws->f += bytes;
-	fprintf(stderr, "COPY : ws->f:");
-	zprint_ptr(ws->f);
-	fprintf(stderr, "\nws->s: ");
-	zprint_ptr(ws->s);
-	fprintf(stderr, "\n");
 	memcpy(r, str, len);
 	DSLb(DBG_WORKSPACE, "WS_Copy(%s, %p, %d) = %p", ws->id, ws, len, r);
 	WS_Assert(ws);

@@ -543,7 +543,9 @@ name##_VRBT_INSERT_COLOR(struct name *head,				\
 	 */								\
 	struct type *child = NULL, *child_up, *gpar;				\
 	uintptr_t elmdir, sibdir;					\
-									\
+	fprintf(stderr, "%s %s %d child: ", __FILE__, __FUNCTION__, __LINE__);\
+	zprint_ptr(child);								\
+	fprintf(stderr, "\n");\
 	do {								\
 		/* the rank of the tree rooted at elm grew */		\
 		gpar = _VRBT_UP(parent, field);				\

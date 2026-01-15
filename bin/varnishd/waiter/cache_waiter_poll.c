@@ -45,6 +45,9 @@
 #include "waiter/waiter_priv.h"
 #include "vtim.h"
 
+#include <stdio.h>
+#include <stdfil.h>
+
 struct vwp {
 	unsigned		magic;
 #define VWP_MAGIC		0x4b2cc735

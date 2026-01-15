@@ -40,6 +40,9 @@
 #include "vcl.h"
 #include "vcc_interface.h"
 
+#include <stdio.h>
+#include <stdfil.h>
+
 enum vrt_priv_storage_e {
 	VRT_PRIV_ST_WS = 1,
 	VRT_PRIV_ST_HEAP

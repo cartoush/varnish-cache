@@ -104,6 +104,9 @@ cmp_order(const struct top *a, const struct top *b)
 	return (cmp_key(a, b));
 }
 
+#include <stdio.h>
+#include <stdfil.h>
+
 VRBT_GENERATE_INSERT_COLOR(t_order, top, e_order, static)
 VRBT_GENERATE_INSERT_FINISH(t_order, top, e_order, static)
 VRBT_GENERATE_INSERT(t_order, top, e_order, cmp_order, static)
@@ -112,10 +115,112 @@ VRBT_GENERATE_MINMAX(t_order, top, e_order, static)
 VRBT_GENERATE_NEXT(t_order, top, e_order, static)
 VRBT_GENERATE_REMOVE(t_order, top, e_order, static)
 
-VRBT_GENERATE_INSERT_COLOR(t_key, top, e_key, static)
+// VRBT_GENERATE_INSERT_COLOR(t_key, top, e_key, static)
+static struct top *
+t_key_VRBT_INSERT_COLOR(struct t_key *head,
+    struct top *parent, struct top *elm)
+{
+	struct top *child = NULL, *child_up, *gpar;
+	uintptr_t elmdir, sibdir;
+	do {
+		fprintf(stderr, "%s %s %d: parent: ", __FILE__, __FUNCTION__, __LINE__);
+		zprint_ptr(parent);
+		fprintf(stderr, "\n");
+		fprintf(stderr, "%s %s %d: gpar: ", __FILE__, __FUNCTION__, __LINE__);
+		zprint_ptr(gpar);
+		fprintf(stderr, "\n");
+		fprintf(stderr, "%s %s %d: (parent)->e_key.rbe_link: ", __FILE__, __FUNCTION__, __LINE__);
+		zprint_ptr((parent)->e_key.rbe_link);
+		fprintf(stderr, "\n");
+		/* the rank of the tree rooted at elm grew */
+		gpar = (parent)->e_key.rbe_link[0];
+		elmdir = (parent)->e_key.rbe_link[_VRBT_R] == elm ? _VRBT_R : _VRBT_L;
+		// elmdir = VRBT_RIGHT(parent, e_key) == elm ? _VRBT_R : _VRBT_L;
+		if (_VRBT_BITS(gpar) & elmdir) {
+			/* shorten the parent-elm edge to rebalance */
+			_VRBT_BITSUP(parent, e_key) ^= elmdir;
+			return (NULL);
+		}
+		sibdir = elmdir ^ _VRBT_LR;
+		/* the other edge must change length */
+		_VRBT_BITSUP(parent, e_key) ^= sibdir;
+		if ((_VRBT_BITS(gpar) & _VRBT_LR) == 0) {
+			/* both edges now short, retry from parent */
+			child = elm;
+			elm = parent;
+			continue;
+		}
+		_VRBT_UP(parent, e_key) = gpar = _VRBT_PTR(gpar);
+		if (_VRBT_BITSUP(elm, e_key) & elmdir) {
+			VRBT_ROTATE(elm, child, elmdir, e_key);
+			child_up = _VRBT_UP(child, e_key);
+			if (_VRBT_BITS(child_up) & sibdir)
+				_VRBT_BITSUP(parent, e_key) ^= elmdir;
+			if (_VRBT_BITS(child_up) & elmdir)
+				_VRBT_BITSUP(elm, e_key) ^= _VRBT_LR;
+			else
+				_VRBT_BITSUP(elm, e_key) ^= elmdir;
+			if ((_VRBT_BITS(child_up) & _VRBT_LR) == 0)
+				elm = child;
+		} else
+			child = elm;
+		VRBT_ROTATE(parent, child, sibdir, e_key);
+		_VRBT_UP(child, e_key) = gpar;
+		VRBT_SWAP_CHILD(head, gpar, parent, child, e_key);
+		if (elm != child)
+			(void)VRBT_AUGMENT_CHECK(elm);
+		(void)VRBT_AUGMENT_CHECK(parent);
+		return (child);
+	} while ((parent = gpar) != NULL);
+	return (NULL);
+}
+
+static struct top *
+t_key_VRBT_INSERT_FINISH(struct t_key *head, struct top *parent,
+    struct top **pptr, struct top *elm)
+{
+	struct top *tmp = NULL;
+
+	VRBT_SET(elm, parent, e_key);
+	*pptr = elm;
+	if (parent != NULL) {
+		fprintf(stderr, "%s %s %d: parent: ", __FILE__, __FUNCTION__, __LINE__);
+		zprint_ptr(parent);
+		fprintf(stderr, "\n");\
+		tmp = t_key_VRBT_INSERT_COLOR(head, parent, elm);
+	}
+	_VRBT_AUGMENT_WALK(elm, tmp, e_key);
+	if (tmp != NULL)
+		(void)VRBT_AUGMENT_CHECK(tmp);
+	return (NULL);
+}
+
+static struct top *
+t_key_VRBT_INSERT(struct t_key *head, struct top *elm)
+{
+	struct top *tmp;
+	struct top **tmpp = &VRBT_ROOT(head);
+	struct top *parent = NULL;
+
+	while ((tmp = *tmpp) != NULL) {
+		parent = tmp;
+		__typeof(cmp_key(NULL, NULL)) comp = (cmp_key)(elm, parent);
+		if (comp < 0)
+			tmpp = &VRBT_LEFT(parent, e_key);
+		else if (comp > 0)
+			tmpp = &VRBT_RIGHT(parent, e_key);
+		else
+			return (parent);
+	}
+	fprintf(stderr, "%s %s %d: parent: ", __FILE__, __FUNCTION__, __LINE__);
+	zprint_ptr(parent);
+	fprintf(stderr, "\n");\
+	return (t_key_VRBT_INSERT_FINISH(head, parent, tmpp, elm));
+}
+
 VRBT_GENERATE_REMOVE_COLOR(t_key, top, e_key, static)
-VRBT_GENERATE_INSERT_FINISH(t_key, top, e_key, static)
-VRBT_GENERATE_INSERT(t_key, top, e_key, cmp_key, static)
+// VRBT_GENERATE_INSERT_FINISH(t_key, top, e_key, static)
+// VRBT_GENERATE_INSERT(t_key, top, e_key, cmp_key, static)
 VRBT_GENERATE_REMOVE(t_key, top, e_key, static)
 VRBT_GENERATE_FIND(t_key, top, e_key, cmp_key, static)
 
